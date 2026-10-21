@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "siteId": "demo-shop",
+  "clientId": "demo-client-b",
+  "siteUrl": "https://demo-shop.example",
+  "checkedAt": "2026-10-21T07:29:14.563Z",
+  "fetchStatus": "success",
+  "error": null,
+  "errors": [],
+  "core": {
+    "installedVersion": "7.0.4",
+    "availableVersion": "7.1.3",
+    "updateAvailable": "yes",
+    "source": "update_core transient",
+    "lastCheck": "2026-10-21T04:29:14.000Z",
+    "updateNote": null
+  },
+  "plugins": [
+    {
+      "identifier": "akismet/akismet.php",
+      "kind": "plugin",
+      "name": "Akismet Anti-spam: Spam Protection",
+      "installedVersion": "5.6",
+      "status": "inactive",
+      "updateAvailable": "no",
+      "offeredVersion": null,
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    },
+    {
+      "identifier": "contact-form-7/wp-contact-form-7.php",
+      "kind": "plugin",
+      "name": "Contact Form 7",
+      "installedVersion": "6.0.6",
+      "status": "active",
+      "updateAvailable": "yes",
+      "offeredVersion": "6.1.2",
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    },
+    {
+      "identifier": "hello.php",
+      "kind": "plugin",
+      "name": "Hello Dolly",
+      "installedVersion": "1.7.2",
+      "status": "inactive",
+      "updateAvailable": "no",
+      "offeredVersion": null,
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    },
+    {
+      "identifier": "hosting-cache-helper.php",
+      "kind": "must-use",
+      "name": "Hosting Cache Helper",
+      "installedVersion": "1.2.0",
+      "status": "active",
+      "updateAvailable": "unknown",
+      "offeredVersion": null,
+      "source": "none",
+      "lastCheck": null,
+      "updateNote": "must-use plugins are not checked for updates by WordPress"
+    },
+    {
+      "identifier": "object-cache.php",
+      "kind": "drop-in",
+      "name": "Redis Object Cache Drop-In",
+      "installedVersion": "2.6.5",
+      "status": "active",
+      "updateAvailable": "unknown",
+      "offeredVersion": null,
+      "source": "none",
+      "lastCheck": null,
+      "updateNote": "drop-ins are not checked for updates by WordPress"
+    },
+    {
+      "identifier": "pro-page-builder/pro-page-builder.php",
+      "kind": "plugin",
+      "name": "Pro Page Builder (premium)",
+      "installedVersion": "3.4.0",
+      "status": "active",
+      "updateAvailable": "unknown",
+      "offeredVersion": null,
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": "no update channel reported (premium or custom plugin/theme?); verify manually"
+    },
+    {
+      "identifier": "simple-gallery/simple-gallery.php",
+      "kind": "plugin",
+      "name": "Simple Gallery",
+      "installedVersion": "2.1.0",
+      "status": "active",
+      "updateAvailable": "unknown",
+      "offeredVersion": null,
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": "not included in the last WordPress update check"
+    },
+    {
+      "identifier": "woocommerce/woocommerce.php",
+      "kind": "plugin",
+      "name": "WooCommerce",
+      "installedVersion": "10.0.4",
+      "status": "active",
+      "updateAvailable": "yes",
+      "offeredVersion": "10.2.2",
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    },
+    {
+      "identifier": "wordpress-seo/wp-seo.php",
+      "kind": "plugin",
+      "name": "Yoast SEO",
+      "installedVersion": "26.2",
+      "status": "active",
+      "updateAvailable": "unknown",
+      "offeredVersion": null,
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": "installed version changed since the last update check"
+    },
+    {
+      "identifier": "wp-mail-smtp/wp_mail_smtp.php",
+      "kind": "plugin",
+      "name": "WP Mail SMTP",
+      "installedVersion": "4.6.0",
+      "status": "active",
+      "updateAvailable": "no",
+      "offeredVersion": null,
+      "source": "update_plugins transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    }
+  ],
+  "themes": [
+    {
+      "slug": "storefront",
+      "name": "Storefront",
+      "installedVersion": "4.6.1",
+      "status": "inactive",
+      "updateAvailable": "yes",
+      "offeredVersion": "4.6.2",
+      "source": "update_themes transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    },
+    {
+      "slug": "storefront-child",
+      "name": "Storefront Child",
+      "installedVersion": "1.0.0",
+      "status": "active",
+      "updateAvailable": "unknown",
+      "offeredVersion": null,
+      "source": "update_themes transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": "no update channel reported (premium or custom plugin/theme?); verify manually"
+    },
+    {
+      "slug": "twentytwentyfive",
+      "name": "Twenty Twenty-Five",
+      "installedVersion": "1.3",
+      "status": "inactive",
+      "updateAvailable": "no",
+      "offeredVersion": null,
+      "source": "update_themes transient",
+      "lastCheck": "2026-10-21T04:29:14.000Z",
+      "updateNote": null
+    }
+  ]
+}

@@ -1,2 +1,12 @@
 node_modules/
+
+# Secrets: application passwords live only in .env (see .env.example)
 .env
+.env.*
+!.env.example
+
+# Client data: real site list, snapshots and reports stay on the agency machine
+clients.json
+snapshots/
+reports/
+sample-output/

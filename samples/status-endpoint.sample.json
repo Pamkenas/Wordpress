@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "pluginVersion": "1.0.0",
+  "generatedAt": "2026-10-21T07:29:15+00:00",
+  "core": {
+    "installed": "7.1.3",
+    "checked": true,
+    "offered": null,
+    "lastChecked": 1792567635
+  },
+  "plugins": {
+    "checked": true,
+    "lastChecked": 1792567642,
+    "updates": {},
+    "noUpdate": [
+      "akismet/akismet.php",
+      "cleantalk-spam-protect/cleantalk.php",
+      "classic-editor/classic-editor.php",
+      "hello-dolly/hello.php",
+      "hello.php",
+      "woocommerce/woocommerce.php"
+    ],
+    "checkedVersions": {
+      "akismet/akismet.php": "5.7.2",
+      "cleantalk-spam-protect/cleantalk.php": "6.90",
+      "classic-editor/classic-editor.php": "1.7.0",
+      "hello-dolly/hello.php": "1.7.2",
+      "hello.php": "1.7.2",
+      "woocommerce/woocommerce.php": "11.2.1"
+    }
+  },
+  "themes": {
+    "checked": true,
+    "lastChecked": 1792567643,
+    "updates": {},
+    "noUpdate": [
+      "twentytwentyfive",
+      "twentytwentyfour",
+      "twentytwentythree"
+    ],
+    "checkedVersions": {
+      "twentytwentyfive": "1.5",
+      "twentytwentyfour": "1.6",
+      "twentytwentythree": "1.7"
+    }
+  },
+  "mustUsePlugins": [],
+  "dropins": []
+}

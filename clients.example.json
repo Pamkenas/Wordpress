@@ -1,0 +1,19 @@
+[
+  {
+    "siteId": "local-test",
+    "clientId": "internal",
+    "clientName": "Local XAMPP test instance",
+    "url": "http://localhost/wordpress",
+    "username": "maintenance-auditor",
+    "passwordEnv": "WP_LOCAL_APP_PASSWORD",
+    "allowInsecureHttp": true
+  },
+  {
+    "siteId": "acme-main",
+    "clientId": "acme",
+    "clientName": "Acme d.o.o.",
+    "url": "https://www.example.com",
+    "username": "maintenance-auditor",
+    "passwordEnv": "WP_ACME_MAIN_APP_PASSWORD"
+  }
+]
