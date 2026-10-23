@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { FixtureSite } from "../src/sample/fixtures.ts";
+import type { MockFailures } from "../src/sample/mock-wordpress.ts";
 import { WordPressApiError, WordPressClient } from "../src/wordpress-client.ts";
 import { FAST, sampleFixture, TEST_PASSWORD, withMockSites } from "./helpers.ts";
 
-function withFailure(failures: FixtureSite["failures"]): FixtureSite {
-  return { ...sampleFixture("demo-bakery"), siteId: "site", ...(failures && { failures }) };
+function withFailure(failures?: MockFailures): FixtureSite {
+  const site: FixtureSite = { ...sampleFixture("demo-bakery"), siteId: "site" };
+  if (failures) site.failures = failures;
+  return site;
 }
 
 async function rejection(promise: Promise<unknown>): Promise<WordPressApiError> {

@@ -4,6 +4,7 @@ import { describe, test } from "node:test";
 import { AGENCY_PLUGIN_ID, BUNDLED_PLUGIN_VERSION } from "../src/agency-plugin.ts";
 import { collectSite, collectSites, resolveUpdate } from "../src/collect.ts";
 import { SAMPLE_SITES, type FixtureSite } from "../src/sample/fixtures.ts";
+import type { PluginInventory } from "../src/types.ts";
 import { FAST, sampleFixture, withMockSites } from "./helpers.ts";
 
 describe("the agency's own status plugin", () => {
@@ -30,20 +31,20 @@ describe("the agency's own status plugin", () => {
       [withPlugin("old-copy", "0.9.0"), withPlugin("same-copy", BUNDLED_PLUGIN_VERSION ?? "")],
       async (sites) => {
         const [old, same] = await collectSites(sites, { ...FAST, concurrency: 2 });
-        const oldPlugin = byId(old?.plugins ?? [], AGENCY_PLUGIN_ID);
+        const oldPlugin = findPlugin(old?.plugins ?? [], AGENCY_PLUGIN_ID);
         assert.equal(oldPlugin.updateAvailable, "yes");
         assert.equal(oldPlugin.offeredVersion, BUNDLED_PLUGIN_VERSION);
-        assert.equal(byId(same?.plugins ?? [], AGENCY_PLUGIN_ID).updateAvailable, "no");
+        assert.equal(findPlugin(same?.plugins ?? [], AGENCY_PLUGIN_ID).updateAvailable, "no");
       },
     );
   });
 });
 
-const byId = <T extends { identifier: string }>(items: T[], id: string): T => {
-  const item = items.find((i) => i.identifier === id);
-  assert.ok(item, `missing ${id}`);
-  return item;
-};
+function findPlugin(plugins: PluginInventory[], id: string): PluginInventory {
+  const plugin = plugins.find((item) => item.identifier === id);
+  assert.ok(plugin, `missing ${id}`);
+  return plugin;
+}
 
 describe("acceptance: inventory completeness", () => {
   test("a site with 15 plugins and zero pending updates still lists all 15", async () => {
@@ -60,8 +61,8 @@ describe("acceptance: inventory completeness", () => {
   test("inactive plugins and inactive themes are included", async () => {
     await withMockSites([sampleFixture("demo-shop")], async ([site]) => {
       const inv = await collectSite(site!, FAST);
-      assert.equal(byId(inv.plugins, "hello.php").status, "inactive");
-      assert.equal(byId(inv.plugins, "akismet/akismet.php").status, "inactive");
+      assert.equal(findPlugin(inv.plugins, "hello.php").status, "inactive");
+      assert.equal(findPlugin(inv.plugins, "akismet/akismet.php").status, "inactive");
       const parent = inv.themes.find((t) => t.slug === "storefront");
       assert.equal(parent?.status, "inactive");
       assert.equal(parent?.updateAvailable, "yes");
@@ -73,7 +74,7 @@ describe("acceptance: inventory completeness", () => {
   test("REST plugin ids are mapped to WordPress basenames so update data matches", async () => {
     await withMockSites([sampleFixture("demo-shop")], async ([site]) => {
       const inv = await collectSite(site!, FAST);
-      const woo = byId(inv.plugins, "woocommerce/woocommerce.php");
+      const woo = findPlugin(inv.plugins, "woocommerce/woocommerce.php");
       assert.equal(woo.updateAvailable, "yes");
       assert.equal(woo.offeredVersion, "10.2.2");
       assert.equal(inv.core.availableVersion, "7.1.3");
@@ -83,10 +84,10 @@ describe("acceptance: inventory completeness", () => {
   test("must-use plugins and drop-ins are listed with an explicit unknown update state", async () => {
     await withMockSites([sampleFixture("demo-shop")], async ([site]) => {
       const inv = await collectSite(site!, FAST);
-      const mu = byId(inv.plugins, "hosting-cache-helper.php");
+      const mu = findPlugin(inv.plugins, "hosting-cache-helper.php");
       assert.equal(mu.kind, "must-use");
       assert.equal(mu.updateAvailable, "unknown");
-      assert.equal(byId(inv.plugins, "object-cache.php").kind, "drop-in");
+      assert.equal(findPlugin(inv.plugins, "object-cache.php").kind, "drop-in");
     });
   });
 });
@@ -100,7 +101,7 @@ describe("acceptance: unknown stays unknown", () => {
         "wordpress-seo/wp-seo.php",
         "simple-gallery/simple-gallery.php",
       ]) {
-        const p = byId(inv.plugins, id);
+        const p = findPlugin(inv.plugins, id);
         assert.equal(p.updateAvailable, "unknown", id);
         assert.equal(p.offeredVersion, null, id);
         assert.ok(p.updateNote, `${id} should explain why it is unknown`);

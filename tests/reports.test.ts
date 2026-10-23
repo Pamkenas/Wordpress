@@ -59,11 +59,20 @@ function r3Text(siteId: string, language = prepared.agency.language): string {
 }
 
 function csvRows(): Array<Record<string, string>> {
-  const [header, ...rows] = parseCsv(buildR1Csv(prepared.reports, prepared.agency).replace(/^\uFEFF/, ""), ",");
-  assert.deepEqual(header, R1_COLUMNS);
-  return rows
-    .filter((row) => row.length > 1)
-    .map((row) => Object.fromEntries(R1_COLUMNS.map((column, index) => [column, row[index] ?? ""])));
+  const csv = buildR1Csv(prepared.reports, prepared.agency).replace(/^\uFEFF/, "");
+  const table = parseCsv(csv, ",");
+  assert.deepEqual(table[0], R1_COLUMNS);
+
+  const rows: Array<Record<string, string>> = [];
+  for (const cells of table.slice(1)) {
+    if (cells.length <= 1) continue;
+    const row: Record<string, string> = {};
+    R1_COLUMNS.forEach((column, index) => {
+      row[column] = cells[index] ?? "";
+    });
+    rows.push(row);
+  }
+  return rows;
 }
 
 describe("acceptance: inventory in reports", () => {

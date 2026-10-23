@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import type { SiteConfig } from "../config.ts";
-import type { RawExtraPlugin, RawStatus, UpdateTransient } from "../wordpress-client.ts";
-import { startMockWordPress, type MockFailure, type MockRoute, type MockSite } from "./mock-wordpress.ts";
+import type { RawExtraPlugin, RawPlugin, RawStatus, RawTheme, UpdateTransient } from "../wordpress-client.ts";
+import { startMockWordPress, type MockFailures, type MockSite } from "./mock-wordpress.ts";
 
 export interface FixtureItem {
   id: string;
@@ -25,7 +25,7 @@ export interface FixtureSite {
   dropins?: RawExtraPlugin[];
   hoursSinceCheck?: number | null;
   statusEndpoint?: boolean;
-  failures?: Partial<Record<MockRoute, MockFailure>>;
+  failures?: MockFailures;
 }
 
 export const SAMPLE_USERNAME = "maintenance-auditor";
@@ -65,9 +65,39 @@ function transient(items: readonly FixtureItem[], lastChecked: number | null): U
   return result;
 }
 
+function mockPlugins(items: FixtureItem[]): RawPlugin[] {
+  const plugins: RawPlugin[] = [];
+  for (const item of items) {
+    plugins.push({
+      plugin: item.id.replace(/\.php$/, ""),
+      name: item.name,
+      status: item.active === false ? "inactive" : "active",
+      version: item.version,
+    });
+  }
+  return plugins;
+}
+
+function mockThemes(items: FixtureItem[]): RawTheme[] {
+  const themes: RawTheme[] = [];
+  for (const item of items) {
+    themes.push({
+      stylesheet: item.id,
+      name: { raw: item.name, rendered: item.name },
+      status: item.active ? "active" : "inactive",
+      version: item.version,
+    });
+  }
+  return themes;
+}
+
 export function buildMockSite(fixture: FixtureSite, username: string, password: string, now: Date): MockSite {
   const hours = fixture.hoursSinceCheck === undefined ? 3 : fixture.hoursSinceCheck;
-  const lastChecked = hours === null ? null : Math.floor(now.getTime() / 1000) - hours * 3600;
+  let lastChecked: number | null = null;
+  if (hours !== null) lastChecked = Math.floor(now.getTime() / 1000) - hours * 3600;
+
+  let offered: string | null = null;
+  if (lastChecked !== null && fixture.core.offered) offered = fixture.core.offered;
 
   const status: RawStatus = {
     schemaVersion: 1,
@@ -76,7 +106,7 @@ export function buildMockSite(fixture: FixtureSite, username: string, password: 
     core: {
       installed: fixture.core.installed,
       checked: lastChecked !== null,
-      offered: lastChecked !== null ? (fixture.core.offered ?? null) : null,
+      offered,
       lastChecked,
     },
     plugins: transient(fixture.plugins, lastChecked),
@@ -85,33 +115,21 @@ export function buildMockSite(fixture: FixtureSite, username: string, password: 
     dropins: fixture.dropins ?? [],
   };
 
-  return {
+  const site: MockSite = {
     siteId: fixture.siteId,
     username,
     password,
-    plugins: fixture.plugins.map((p) => ({
-      plugin: p.id.replace(/\.php$/, ""),
-      name: p.name,
-      status: p.active === false ? "inactive" : "active",
-      version: p.version,
-    })),
-    themes: fixture.themes.map((t) => ({
-      stylesheet: t.id,
-      name: { raw: t.name, rendered: t.name },
-      status: t.active ? "active" : "inactive",
-      version: t.version,
-    })),
+    plugins: mockPlugins(fixture.plugins),
+    themes: mockThemes(fixture.themes),
     status: fixture.statusEndpoint === false ? null : status,
-    ...(fixture.failures && { failures: fixture.failures }),
   };
+  if (fixture.failures) site.failures = fixture.failures;
+  return site;
 }
 
-const current = (id: string, name: string, version: string, active = true): FixtureItem => ({
-  id,
-  name,
-  version,
-  active,
-});
+function current(id: string, name: string, version: string, active = true): FixtureItem {
+  return { id, name, version, active };
+}
 
 const DEMO_BAKERY: FixtureSite = {
   siteId: "demo-bakery",

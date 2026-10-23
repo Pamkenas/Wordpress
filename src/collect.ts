@@ -1,6 +1,18 @@
 import { AGENCY_PLUGIN_ID, agencyPluginUpdate } from "./agency-plugin.ts";
 import type { SiteConfig } from "./config.ts";
 import {
+  SNAPSHOT_SCHEMA_VERSION,
+  type ActivationStatus,
+  type CollectionError,
+  type CollectionSource,
+  type CoreInventory,
+  type ErrorKind,
+  type PluginInventory,
+  type SiteInventory,
+  type ThemeInventory,
+  type UpdateInfo,
+} from "./types.ts";
+import {
   WordPressApiError,
   WordPressClient,
   type ClientOptions,
@@ -10,16 +22,6 @@ import {
   type RawTheme,
   type UpdateTransient,
 } from "./wordpress-client.ts";
-import {
-  SNAPSHOT_SCHEMA_VERSION,
-  type ActivationStatus,
-  type CollectionError,
-  type CollectionSource,
-  type PluginInventory,
-  type SiteInventory,
-  type ThemeInventory,
-  type UpdateInfo,
-} from "./types.ts";
 
 export interface CollectOptions extends ClientOptions {
   concurrency: number;
@@ -35,17 +37,21 @@ const NOTE = {
   mustUse: "must-use plugins are not checked for updates by WordPress",
   dropin: "drop-ins are not checked for updates by WordPress",
   coreStale: "core update check is missing or older than the installed version",
-} as const;
+};
+
+const UNREACHABLE_KINDS: ErrorKind[] = ["timeout", "network", "tls", "redirect"];
 
 function toError(source: CollectionSource, error: unknown): CollectionError {
-  if (error instanceof WordPressApiError) {
-    let message = error.message;
-    if (source === "status" && error.kind === "not-found") {
-      message += "; is the Agency Maintenance Status plugin installed and active?";
-    }
-    return { source, kind: error.kind, httpStatus: error.status, message };
+  if (!(error instanceof WordPressApiError)) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { source, kind: "network", httpStatus: null, message };
   }
-  return { source, kind: "network", httpStatus: null, message: error instanceof Error ? error.message : String(error) };
+
+  let message = error.message;
+  if (source === "status" && error.kind === "not-found") {
+    message += "; is the Agency Maintenance Status plugin installed and active?";
+  }
+  return { source, kind: error.kind, httpStatus: error.status, message };
 }
 
 function toStatus(status: string): ActivationStatus {
@@ -54,11 +60,12 @@ function toStatus(status: string): ActivationStatus {
   return "unknown";
 }
 
-function toIso(timestamp: number | null | undefined): string | null {
-  return timestamp ? new Date(timestamp * 1000).toISOString() : null;
+function toIso(timestamp: number | null): string | null {
+  if (!timestamp) return null;
+  return new Date(timestamp * 1000).toISOString();
 }
 
-function unknown(note: string, source: string, lastCheck: string | null = null): UpdateInfo {
+function unknownUpdate(note: string, source: string, lastCheck: string | null): UpdateInfo {
   return { updateAvailable: "unknown", offeredVersion: null, source, lastCheck, updateNote: note };
 }
 
@@ -68,28 +75,22 @@ export function resolveUpdate(
   transient: UpdateTransient | null,
   sourceName: string,
 ): UpdateInfo {
-  if (!transient) return unknown(NOTE.noStatus, "none");
+  if (!transient) return unknownUpdate(NOTE.noStatus, "none", null);
 
   const lastCheck = toIso(transient.lastChecked);
-  if (!transient.checked) return unknown(NOTE.neverChecked, sourceName, lastCheck);
+  if (!transient.checked) return unknownUpdate(NOTE.neverChecked, sourceName, lastCheck);
 
-  const checkedVersion = transient.checkedVersions[id];
-  if (checkedVersion === undefined) return unknown(NOTE.notInCheck, sourceName, lastCheck);
-  if (checkedVersion !== installedVersion) return unknown(NOTE.stale, sourceName, lastCheck);
+  if (!Object.hasOwn(transient.checkedVersions, id)) return unknownUpdate(NOTE.notInCheck, sourceName, lastCheck);
+  if (transient.checkedVersions[id] !== installedVersion) return unknownUpdate(NOTE.stale, sourceName, lastCheck);
 
   if (Object.hasOwn(transient.updates, id)) {
-    return {
-      updateAvailable: "yes",
-      offeredVersion: transient.updates[id] ?? null,
-      source: sourceName,
-      lastCheck,
-      updateNote: null,
-    };
+    const offered = transient.updates[id] ?? null;
+    return { updateAvailable: "yes", offeredVersion: offered, source: sourceName, lastCheck, updateNote: null };
   }
   if (transient.noUpdate.includes(id)) {
     return { updateAvailable: "no", offeredVersion: null, source: sourceName, lastCheck, updateNote: null };
   }
-  return unknown(NOTE.untracked, sourceName, lastCheck);
+  return unknownUpdate(NOTE.untracked, sourceName, lastCheck);
 }
 
 function themeName(theme: RawTheme): string {
@@ -97,60 +98,68 @@ function themeName(theme: RawTheme): string {
   return theme.name.raw || theme.name.rendered || theme.stylesheet;
 }
 
+function pluginUpdate(identifier: string, installedVersion: string | null, status: RawStatus | null): UpdateInfo {
+  if (identifier === AGENCY_PLUGIN_ID) return agencyPluginUpdate(installedVersion);
+  const transient = status ? status.plugins : null;
+  return resolveUpdate(identifier, installedVersion, transient, "update_plugins transient");
+}
+
+function extraPlugin(item: RawExtraPlugin, kind: "must-use" | "drop-in", note: string): PluginInventory {
+  return {
+    identifier: item.file,
+    kind,
+    name: item.name || item.file,
+    installedVersion: item.version || null,
+    status: "active",
+    ...unknownUpdate(note, "none", null),
+  };
+}
+
 function normalizePlugins(raw: RawPlugin[], status: RawStatus | null): PluginInventory[] {
-  const plugins: PluginInventory[] = raw.map((p) => {
-    const identifier = `${p.plugin}.php`;
-    const installedVersion = p.version || null;
-    const update =
-      identifier === AGENCY_PLUGIN_ID
-        ? agencyPluginUpdate(installedVersion)
-        : resolveUpdate(identifier, installedVersion, status?.plugins ?? null, "update_plugins transient");
-    return {
+  const plugins: PluginInventory[] = [];
+
+  for (const item of raw) {
+    const identifier = `${item.plugin}.php`;
+    const installedVersion = item.version || null;
+    plugins.push({
       identifier,
       kind: "plugin",
-      name: p.name || identifier,
+      name: item.name || identifier,
       installedVersion,
-      status: toStatus(p.status),
-      ...update,
-    };
-  });
-
-  const extra = (list: RawExtraPlugin[], kind: "must-use" | "drop-in", note: string): PluginInventory[] =>
-    list.map((p) => ({
-      identifier: p.file,
-      kind,
-      name: p.name || p.file,
-      installedVersion: p.version || null,
-      status: "active",
-      ...unknown(note, "none"),
-    }));
-
-  if (status) {
-    plugins.push(
-      ...extra(status.mustUsePlugins, "must-use", NOTE.mustUse),
-      ...extra(status.dropins, "drop-in", NOTE.dropin),
-    );
+      status: toStatus(item.status),
+      ...pluginUpdate(identifier, installedVersion, status),
+    });
   }
 
-  return plugins.sort((a, b) => a.identifier.localeCompare(b.identifier));
+  if (status) {
+    for (const item of status.mustUsePlugins) plugins.push(extraPlugin(item, "must-use", NOTE.mustUse));
+    for (const item of status.dropins) plugins.push(extraPlugin(item, "drop-in", NOTE.dropin));
+  }
+
+  plugins.sort((a, b) => a.identifier.localeCompare(b.identifier));
+  return plugins;
 }
 
 function normalizeThemes(raw: RawTheme[], status: RawStatus | null): ThemeInventory[] {
-  return raw
-    .map((t) => {
-      const installedVersion = t.version || null;
-      return {
-        slug: t.stylesheet,
-        name: themeName(t),
-        installedVersion,
-        status: toStatus(t.status),
-        ...resolveUpdate(t.stylesheet, installedVersion, status?.themes ?? null, "update_themes transient"),
-      };
-    })
-    .sort((a, b) => a.slug.localeCompare(b.slug));
+  const themes: ThemeInventory[] = [];
+  const transient = status ? status.themes : null;
+
+  for (const item of raw) {
+    const installedVersion = item.version || null;
+    themes.push({
+      slug: item.stylesheet,
+      name: themeName(item),
+      installedVersion,
+      status: toStatus(item.status),
+      ...resolveUpdate(item.stylesheet, installedVersion, transient, "update_themes transient"),
+    });
+  }
+
+  themes.sort((a, b) => a.slug.localeCompare(b.slug));
+  return themes;
 }
 
-function normalizeCore(status: RawStatus | null): SiteInventory["core"] {
+function normalizeCore(status: RawStatus | null): CoreInventory {
   if (!status) {
     return {
       installedVersion: null,
@@ -162,14 +171,25 @@ function normalizeCore(status: RawStatus | null): SiteInventory["core"] {
     };
   }
 
-  const { installed, checked, offered, lastChecked } = status.core;
+  const core = status.core;
+  if (!core.checked) {
+    return {
+      installedVersion: core.installed,
+      availableVersion: null,
+      updateAvailable: "unknown",
+      source: "update_core transient",
+      lastCheck: toIso(core.lastChecked),
+      updateNote: NOTE.coreStale,
+    };
+  }
+
   return {
-    installedVersion: installed,
-    availableVersion: checked ? offered : null,
-    updateAvailable: !checked ? "unknown" : offered ? "yes" : "no",
+    installedVersion: core.installed,
+    availableVersion: core.offered,
+    updateAvailable: core.offered ? "yes" : "no",
     source: "update_core transient",
-    lastCheck: toIso(lastChecked),
-    updateNote: checked ? null : NOTE.coreStale,
+    lastCheck: toIso(core.lastChecked),
+    updateNote: null,
   };
 }
 
@@ -189,74 +209,97 @@ function emptyInventory(site: SiteConfig, checkedAt: string): SiteInventory {
   };
 }
 
+function siteUnreachable(errors: CollectionError[]): boolean {
+  return errors.some((error) => UNREACHABLE_KINDS.includes(error.kind));
+}
+
+function errorSummary(errors: CollectionError[]): string | null {
+  if (errors.length === 0) return null;
+  return errors.map((error) => `${error.source}: ${error.message}`).join("; ");
+}
+
 export async function collectSite(
   site: SiteConfig,
   options: Partial<ClientOptions> = {},
   now: () => Date = () => new Date(),
 ): Promise<SiteInventory> {
   const result = emptyInventory(site, now().toISOString());
+  const errors = result.errors;
 
   const password = process.env[site.passwordEnv];
   if (!password) {
-    result.errors.push({
-      source: "config",
-      kind: "config",
-      httpStatus: null,
-      message: `environment variable ${site.passwordEnv} is not set`,
-    });
-    result.error = `config: ${result.errors[0]?.message}`;
+    const message = `environment variable ${site.passwordEnv} is not set`;
+    errors.push({ source: "config", kind: "config", httpStatus: null, message });
+    result.error = `config: ${message}`;
     return result;
   }
 
   const client = new WordPressClient(site.url, site.username, password, options);
-  const [plugins, themes, status] = await Promise.allSettled([
-    client.getPlugins(),
-    client.getThemes(),
-    client.getStatus(),
-  ]);
 
-  if (plugins.status === "rejected") result.errors.push(toError("plugins", plugins.reason));
-  if (themes.status === "rejected") result.errors.push(toError("themes", themes.reason));
-  if (status.status === "rejected") result.errors.push(toError("status", status.reason));
+  let plugins: RawPlugin[] | null = null;
+  try {
+    plugins = await client.getPlugins();
+  } catch (error) {
+    errors.push(toError("plugins", error));
+  }
 
-  const st = status.status === "fulfilled" ? status.value : null;
-  result.core = normalizeCore(st);
-  if (plugins.status === "fulfilled") result.plugins = normalizePlugins(plugins.value, st);
-  if (themes.status === "fulfilled") result.themes = normalizeThemes(themes.value, st);
-
-  if (plugins.status === "rejected") result.fetchStatus = "failed";
-  else result.fetchStatus = result.errors.length > 0 ? "partial" : "success";
-
-  result.error = result.errors.length > 0 ? result.errors.map((e) => `${e.source}: ${e.message}`).join("; ") : null;
-  return result;
-}
-
-export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-
-  async function worker(): Promise<void> {
-    while (next < items.length) {
-      const index = next++;
-      results[index] = await fn(items[index] as T);
+  let themes: RawTheme[] | null = null;
+  if (!siteUnreachable(errors)) {
+    try {
+      themes = await client.getThemes();
+    } catch (error) {
+      errors.push(toError("themes", error));
     }
   }
 
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
-  return results;
+  let status: RawStatus | null = null;
+  if (!siteUnreachable(errors)) {
+    try {
+      status = await client.getStatus();
+    } catch (error) {
+      errors.push(toError("status", error));
+    }
+  }
+
+  result.core = normalizeCore(status);
+  if (plugins) result.plugins = normalizePlugins(plugins, status);
+  if (themes) result.themes = normalizeThemes(themes, status);
+
+  if (!plugins) result.fetchStatus = "failed";
+  else if (errors.length > 0) result.fetchStatus = "partial";
+  else result.fetchStatus = "success";
+
+  result.error = errorSummary(errors);
+  return result;
 }
 
-export function collectSites(sites: readonly SiteConfig[], options: CollectOptions): Promise<SiteInventory[]> {
-  const { concurrency, now = () => new Date(), ...clientOptions } = options;
-  return mapLimit(sites, concurrency, async (site) => {
-    const startedAt = now().toISOString();
-    try {
-      return await collectSite(site, clientOptions, now);
-    } catch (error) {
-      const failed = emptyInventory(site, startedAt);
-      failed.errors.push(toError("plugins", error));
-      failed.error = `unexpected: ${failed.errors[0]?.message}`;
-      return failed;
-    }
-  });
+async function collectSiteSafely(site: SiteConfig, options: ClientOptions, now: () => Date): Promise<SiteInventory> {
+  const startedAt = now().toISOString();
+  try {
+    return await collectSite(site, options, now);
+  } catch (error) {
+    const failed = emptyInventory(site, startedAt);
+    const problem = toError("plugins", error);
+    failed.errors.push(problem);
+    failed.error = `unexpected: ${problem.message}`;
+    return failed;
+  }
+}
+
+export async function collectSites(sites: readonly SiteConfig[], options: CollectOptions): Promise<SiteInventory[]> {
+  const now = options.now ?? (() => new Date());
+  const clientOptions: ClientOptions = {
+    timeoutMs: options.timeoutMs,
+    retries: options.retries,
+    retryDelayMs: options.retryDelayMs,
+  };
+  const batchSize = Math.max(1, options.concurrency);
+
+  const results: SiteInventory[] = [];
+  for (let start = 0; start < sites.length; start += batchSize) {
+    const batch = sites.slice(start, start + batchSize);
+    const inventories = await Promise.all(batch.map((site) => collectSiteSafely(site, clientOptions, now)));
+    results.push(...inventories);
+  }
+  return results;
 }

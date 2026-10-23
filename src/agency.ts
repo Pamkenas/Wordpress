@@ -17,6 +17,28 @@ export interface AgencyConfig {
 
 const KNOWN_KEYS = ["agencyName", "contactEmail", "website", "primaryColor", "logo", "language", "csvDelimiter"];
 const DEFAULT_COLOR = "#1f6f8b";
+const LOGO_EXTENSIONS = [".png", ".jpg", ".jpeg"];
+
+function readText(entry: Record<string, unknown>, key: string, problems: string[]): string | null {
+  const value = entry[key];
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") {
+    problems.push(`"${key}" must be a string`);
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function toLanguage(value: string): Language | null {
+  if (value === "en" || value === "sl") return value;
+  return null;
+}
+
+function toDelimiter(value: string): CsvDelimiter | null {
+  if (value === "," || value === ";") return value;
+  return null;
+}
 
 export function parseAgency(data: unknown, source: string, baseDir: string): AgencyConfig {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
@@ -30,51 +52,47 @@ export function parseAgency(data: unknown, source: string, baseDir: string): Age
     if (!KNOWN_KEYS.includes(key)) problems.push(`unknown field "${key}"`);
   }
 
-  function text(key: string): string | null {
-    const value = entry[key];
-    if (value === undefined || value === null || value === "") return null;
-    if (typeof value !== "string") {
-      problems.push(`"${key}" must be a string`);
-      return null;
-    }
-    return value.trim() || null;
-  }
-
-  const agencyName = text("agencyName");
+  const agencyName = readText(entry, "agencyName", problems);
   if (!agencyName) problems.push('"agencyName" is required');
 
-  const contactEmail = text("contactEmail");
+  const contactEmail = readText(entry, "contactEmail", problems);
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
     problems.push('"contactEmail" is not a valid e-mail address');
   }
 
-  const website = text("website");
-  if (website && !/^https?:\/\/\S+$/.test(website)) problems.push('"website" must start with https://');
+  const website = readText(entry, "website", problems);
+  if (website && !/^https?:\/\/\S+$/.test(website)) {
+    problems.push('"website" must start with https://');
+  }
 
-  const primaryColor = text("primaryColor") ?? DEFAULT_COLOR;
-  if (!/^#[0-9a-fA-F]{6}$/.test(primaryColor)) problems.push('"primaryColor" must look like #1f6f8b');
+  const primaryColor = readText(entry, "primaryColor", problems) ?? DEFAULT_COLOR;
+  if (!/^#[0-9a-fA-F]{6}$/.test(primaryColor)) {
+    problems.push('"primaryColor" must look like #1f6f8b');
+  }
 
-  const logo = text("logo");
-  if (logo && ![".png", ".jpg", ".jpeg"].includes(extname(logo).toLowerCase())) {
+  const logo = readText(entry, "logo", problems);
+  if (logo && !LOGO_EXTENSIONS.includes(extname(logo).toLowerCase())) {
     problems.push('"logo" must be a .png or .jpg file');
   }
 
-  const language = text("language") ?? "en";
-  if (language !== "en" && language !== "sl") problems.push('"language" must be "en" or "sl"');
+  const language = toLanguage(readText(entry, "language", problems) ?? "en");
+  if (!language) problems.push('"language" must be "en" or "sl"');
 
-  const csvDelimiter = text("csvDelimiter") ?? ",";
-  if (csvDelimiter !== "," && csvDelimiter !== ";") problems.push('"csvDelimiter" must be "," or ";"');
+  const csvDelimiter = toDelimiter(readText(entry, "csvDelimiter", problems) ?? ",");
+  if (!csvDelimiter) problems.push('"csvDelimiter" must be "," or ";"');
 
-  if (problems.length > 0) throw new ConfigError(source, problems);
+  if (problems.length > 0 || !agencyName || !language || !csvDelimiter) {
+    throw new ConfigError(source, problems);
+  }
 
   return {
-    agencyName: agencyName as string,
+    agencyName,
     contactEmail,
     website,
     primaryColor,
     logo: logo ? resolve(baseDir, logo) : null,
-    language: language as Language,
-    csvDelimiter: csvDelimiter as CsvDelimiter,
+    language,
+    csvDelimiter,
   };
 }
 
@@ -84,9 +102,9 @@ export async function loadAgency(path: string): Promise<AgencyConfig> {
     content = await readFile(path, "utf8");
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    throw new ConfigError(path, [
-      code === "ENOENT" ? "file not found (copy agency.example.json to agency.json)" : `cannot read file (${code})`,
-    ]);
+    const problem =
+      code === "ENOENT" ? "file not found (copy agency.example.json to agency.json)" : `cannot read file (${code})`;
+    throw new ConfigError(path, [problem]);
   }
 
   let data: unknown;

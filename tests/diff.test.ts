@@ -1,21 +1,27 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { compareVersions, diffInventories } from "../src/diff.ts";
-import type { PluginInventory, SiteInventory, ThemeInventory } from "../src/types.ts";
+import type { PluginInventory, PluginKind, SiteInventory, ThemeInventory, UpdateInfo } from "../src/types.ts";
 
-const UPDATE = { updateAvailable: "no", offeredVersion: null, source: "t", lastCheck: null, updateNote: null } as const;
+const NO_UPDATE: UpdateInfo = {
+  updateAvailable: "no",
+  offeredVersion: null,
+  source: "test",
+  lastCheck: null,
+  updateNote: null,
+};
 
 function plugin(
   identifier: string,
   version: string,
   status: "active" | "inactive" = "active",
-  kind: PluginInventory["kind"] = "plugin",
+  kind: PluginKind = "plugin",
 ): PluginInventory {
-  return { identifier, kind, name: identifier, installedVersion: version, status, ...UPDATE };
+  return { identifier, kind, name: identifier, installedVersion: version, status, ...NO_UPDATE };
 }
 
 function theme(slug: string, version: string, status: "active" | "inactive"): ThemeInventory {
-  return { slug, name: slug, installedVersion: version, status, ...UPDATE };
+  return { slug, name: slug, installedVersion: version, status, ...NO_UPDATE };
 }
 
 function inventory(core: string | null, plugins: PluginInventory[], themes: ThemeInventory[] = []): SiteInventory {
@@ -28,7 +34,14 @@ function inventory(core: string | null, plugins: PluginInventory[], themes: Them
     fetchStatus: "success",
     error: null,
     errors: [],
-    core: { installedVersion: core, availableVersion: null, ...UPDATE },
+    core: {
+      installedVersion: core,
+      availableVersion: null,
+      updateAvailable: "no",
+      source: "test",
+      lastCheck: null,
+      updateNote: null,
+    },
     plugins,
     themes,
   };
@@ -81,16 +94,16 @@ describe("diffInventories", () => {
   });
 
   test("a failed snapshot cannot be compared", () => {
-    const failed = { ...inventory(null, []), fetchStatus: "failed" as const };
+    const failed: SiteInventory = { ...inventory(null, []), fetchStatus: "failed" };
     assert.equal(diffInventories(failed, inventory("7.1.3", [])), null);
   });
 
   test("must-use plugins are not reported as removed when the status endpoint was missing", () => {
     const before = inventory("7.1.3", [plugin("a.php", "1.0"), plugin("mu.php", "1.0", "active", "must-use")]);
-    const after = {
+    const after: SiteInventory = {
       ...inventory(null, [plugin("a.php", "1.0")]),
-      fetchStatus: "partial" as const,
-      errors: [{ source: "status" as const, kind: "not-found" as const, httpStatus: 404, message: "x" }],
+      fetchStatus: "partial",
+      errors: [{ source: "status", kind: "not-found", httpStatus: 404, message: "x" }],
     };
     assert.deepEqual(diffInventories(before, after), []);
   });

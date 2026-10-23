@@ -22,43 +22,43 @@ interface ComparableItem {
 
 const ITEM_ORDER: Record<ItemType, number> = { core: 0, plugin: 1, theme: 2 };
 
+function isNumberPart(part: string): boolean {
+  return /^\d+$/.test(part);
+}
+
+function compareParts(x: string, y: string): number {
+  if (isNumberPart(x) && isNumberPart(y)) {
+    if (Number(x) === Number(y)) return 0;
+    return Number(x) < Number(y) ? -1 : 1;
+  }
+  if (x === y) return 0;
+  if (isNumberPart(x)) return 1;
+  if (isNumberPart(y)) return -1;
+  return x < y ? -1 : 1;
+}
+
 export function compareVersions(a: string, b: string): number {
   const partsA = a.split(/[.\-+_]/);
   const partsB = b.split(/[.\-+_]/);
   const length = Math.max(partsA.length, partsB.length);
 
   for (let i = 0; i < length; i++) {
-    const x = partsA[i];
-    const y = partsB[i];
-
-    if (x === undefined || y === undefined) {
-      const extra = (x ?? y) as string;
-      if (/^\d+$/.test(extra)) {
-        if (Number(extra) === 0) continue;
-        return x === undefined ? -1 : 1;
-      }
-      return x === undefined ? 1 : -1;
-    }
-
-    const isNumberX = /^\d+$/.test(x);
-    const isNumberY = /^\d+$/.test(y);
-    if (isNumberX && isNumberY) {
-      if (Number(x) !== Number(y)) return Number(x) < Number(y) ? -1 : 1;
-    } else if (x !== y) {
-      return x < y ? -1 : 1;
-    }
+    const result = compareParts(partsA[i] ?? "0", partsB[i] ?? "0");
+    if (result !== 0) return result;
   }
   return 0;
 }
 
-function failed(inventory: SiteInventory, source: CollectionSource): boolean {
+function hasError(inventory: SiteInventory, source: CollectionSource): boolean {
   return inventory.errors.some((error) => error.source === source);
 }
 
 function versionChange(itemType: ItemType, before: ComparableItem, after: ComparableItem): Change | null {
   if (before.installedVersion === null || after.installedVersion === null) return null;
+
   const order = compareVersions(before.installedVersion, after.installedVersion);
   if (order === 0) return null;
+
   return {
     itemType,
     identifier: after.identifier,
@@ -71,7 +71,9 @@ function versionChange(itemType: ItemType, before: ComparableItem, after: Compar
 
 function statusChange(itemType: ItemType, before: ComparableItem, after: ComparableItem): Change | null {
   const known = ["active", "inactive"];
-  if (before.status === after.status || !known.includes(before.status) || !known.includes(after.status)) return null;
+  if (before.status === after.status) return null;
+  if (!known.includes(before.status) || !known.includes(after.status)) return null;
+
   return {
     itemType,
     identifier: after.identifier,
@@ -84,8 +86,12 @@ function statusChange(itemType: ItemType, before: ComparableItem, after: Compara
 
 function compareLists(itemType: ItemType, before: ComparableItem[], after: ComparableItem[]): Change[] {
   const changes: Change[] = [];
-  const oldItems = new Map(before.map((item) => [item.identifier, item]));
-  const newIds = new Set(after.map((item) => item.identifier));
+
+  const oldItems = new Map<string, ComparableItem>();
+  for (const item of before) oldItems.set(item.identifier, item);
+
+  const newIds = new Set<string>();
+  for (const item of after) newIds.add(item.identifier);
 
   for (const item of after) {
     const previous = oldItems.get(item.identifier);
@@ -103,6 +109,7 @@ function compareLists(itemType: ItemType, before: ComparableItem[], after: Compa
 
     const version = versionChange(itemType, previous, item);
     if (version) changes.push(version);
+
     const status = statusChange(itemType, previous, item);
     if (status) changes.push(status);
   }
@@ -122,39 +129,67 @@ function compareLists(itemType: ItemType, before: ComparableItem[], after: Compa
   return changes;
 }
 
+function coreChange(before: SiteInventory, after: SiteInventory): Change | null {
+  const oldVersion = before.core.installedVersion;
+  const newVersion = after.core.installedVersion;
+  if (oldVersion === null || newVersion === null) return null;
+
+  const order = compareVersions(oldVersion, newVersion);
+  if (order === 0) return null;
+
+  return {
+    itemType: "core",
+    identifier: "wordpress",
+    name: "WordPress",
+    kind: order < 0 ? "updated" : "downgraded",
+    before: oldVersion,
+    after: newVersion,
+  };
+}
+
+function comparablePlugins(inventory: SiteInventory, includeExtras: boolean): ComparableItem[] {
+  const items: ComparableItem[] = [];
+  for (const plugin of inventory.plugins) {
+    if (includeExtras || plugin.kind === "plugin") items.push(plugin);
+  }
+  return items;
+}
+
+function comparableThemes(inventory: SiteInventory): ComparableItem[] {
+  const items: ComparableItem[] = [];
+  for (const theme of inventory.themes) {
+    items.push({
+      identifier: theme.slug,
+      name: theme.name,
+      installedVersion: theme.installedVersion,
+      status: theme.status,
+    });
+  }
+  return items;
+}
+
+function byTypeThenName(a: Change, b: Change): number {
+  if (a.itemType !== b.itemType) return ITEM_ORDER[a.itemType] - ITEM_ORDER[b.itemType];
+  return a.name.localeCompare(b.name);
+}
+
 export function diffInventories(before: SiteInventory, after: SiteInventory): Change[] | null {
   if (before.fetchStatus === "failed" || after.fetchStatus === "failed") return null;
 
   const changes: Change[] = [];
 
-  const oldCore = before.core.installedVersion;
-  const newCore = after.core.installedVersion;
-  if (oldCore !== null && newCore !== null && compareVersions(oldCore, newCore) !== 0) {
-    changes.push({
-      itemType: "core",
-      identifier: "wordpress",
-      name: "WordPress",
-      kind: compareVersions(oldCore, newCore) < 0 ? "updated" : "downgraded",
-      before: oldCore,
-      after: newCore,
-    });
+  const core = coreChange(before, after);
+  if (core) changes.push(core);
+
+  const includeExtras = !hasError(before, "status") && !hasError(after, "status");
+  changes.push(
+    ...compareLists("plugin", comparablePlugins(before, includeExtras), comparablePlugins(after, includeExtras)),
+  );
+
+  if (!hasError(before, "themes") && !hasError(after, "themes")) {
+    changes.push(...compareLists("theme", comparableThemes(before), comparableThemes(after)));
   }
 
-  const extrasComparable = !failed(before, "status") && !failed(after, "status");
-  const pluginsOf = (inventory: SiteInventory): ComparableItem[] =>
-    inventory.plugins.filter((plugin) => extrasComparable || plugin.kind === "plugin");
-  changes.push(...compareLists("plugin", pluginsOf(before), pluginsOf(after)));
-
-  if (!failed(before, "themes") && !failed(after, "themes")) {
-    const themesOf = (inventory: SiteInventory): ComparableItem[] =>
-      inventory.themes.map((theme) => ({
-        identifier: theme.slug,
-        name: theme.name,
-        installedVersion: theme.installedVersion,
-        status: theme.status,
-      }));
-    changes.push(...compareLists("theme", themesOf(before), themesOf(after)));
-  }
-
-  return changes.sort((a, b) => ITEM_ORDER[a.itemType] - ITEM_ORDER[b.itemType] || a.name.localeCompare(b.name));
+  changes.sort(byTypeThenName);
+  return changes;
 }

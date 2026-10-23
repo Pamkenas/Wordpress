@@ -56,10 +56,10 @@ export function sampleFixture(siteId: string): FixtureSite {
   return fixture;
 }
 
-export async function withMockSites<T>(
+export async function withMockSites(
   fixtures: FixtureSite[],
-  fn: (sites: SiteConfig[], mock: MockWordPress) => Promise<T>,
-): Promise<T> {
+  fn: (sites: SiteConfig[], mock: MockWordPress) => Promise<void>,
+): Promise<void> {
   process.env[TEST_PASSWORD_ENV] = TEST_PASSWORD;
   const password = TEST_PASSWORD.replace(/\s+/g, "");
   const mock = await startMockWordPress(fixtures.map((f) => buildMockSite(f, "auditor", password, new Date())));
@@ -72,7 +72,7 @@ export async function withMockSites<T>(
     allowInsecureHttp: true,
   }));
   try {
-    return await fn(sites, mock);
+    await fn(sites, mock);
   } finally {
     await mock.close();
   }

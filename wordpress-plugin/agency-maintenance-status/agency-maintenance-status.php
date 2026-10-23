@@ -16,7 +16,6 @@
 namespace AgencyMaintenanceStatus;
 
 use WP_Error;
-use WP_REST_Request;
 use WP_REST_Response;
 use WP_REST_Server;
 use WP_User;
@@ -28,6 +27,7 @@ const SCHEMA_VERSION = 1;
 const REST_NAMESPACE = 'agency-maintenance/v1';
 const CAPABILITY     = 'view_agency_maintenance_status';
 const ROLE           = 'agency_maintenance_auditor';
+const READ_METHODS   = array( 'GET', 'HEAD' );
 
 const REST_ONLY_CAPS = array( 'activate_plugins', 'switch_themes' );
 const AUDITOR_CAPS   = array(
@@ -64,23 +64,38 @@ function deactivate() {
 register_deactivation_hook( __FILE__, __NAMESPACE__ . '\deactivate' );
 
 function is_auditor( $user = null ) {
-	$user = $user instanceof WP_User ? $user : wp_get_current_user();
-	return array( ROLE ) === array_values( (array) $user->roles );
+	if ( ! $user instanceof WP_User ) {
+		$user = wp_get_current_user();
+	}
+	$roles = array_values( (array) $user->roles );
+	return 1 === count( $roles ) && ROLE === $roles[0];
+}
+
+function request_method() {
+	if ( ! isset( $_SERVER['REQUEST_METHOD'] ) ) {
+		return '';
+	}
+	return strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) );
 }
 
 function is_read_only_rest_request() {
-	if ( ! ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+	if ( ! defined( 'REST_REQUEST' ) || ! REST_REQUEST ) {
 		return false;
 	}
 	if ( isset( $_GET['_method'] ) || isset( $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] ) ) {
 		return false;
 	}
-	$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '';
-	return in_array( $method, array( 'GET', 'HEAD' ), true );
+	return in_array( request_method(), READ_METHODS, true );
 }
 
 function filter_auditor_caps( $allcaps, $caps, $args, $user ) {
-	if ( empty( $allcaps[ CAPABILITY ] ) || ! is_auditor( $user ) || is_read_only_rest_request() ) {
+	if ( empty( $allcaps[ CAPABILITY ] ) ) {
+		return $allcaps;
+	}
+	if ( ! is_auditor( $user ) ) {
+		return $allcaps;
+	}
+	if ( is_read_only_rest_request() ) {
 		return $allcaps;
 	}
 	foreach ( REST_ONLY_CAPS as $cap ) {
@@ -91,7 +106,13 @@ function filter_auditor_caps( $allcaps, $caps, $args, $user ) {
 add_filter( 'user_has_cap', __NAMESPACE__ . '\filter_auditor_caps', 10, 4 );
 
 function block_auditor_writes( $result, $server, $request ) {
-	if ( null !== $result || ! is_auditor() || in_array( $request->get_method(), array( 'GET', 'HEAD' ), true ) ) {
+	if ( null !== $result ) {
+		return $result;
+	}
+	if ( ! is_auditor() ) {
+		return $result;
+	}
+	if ( in_array( $request->get_method(), READ_METHODS, true ) ) {
 		return $result;
 	}
 	return new WP_Error(
@@ -148,30 +169,51 @@ function get_status() {
 	return $response;
 }
 
+function installed_core_version() {
+	if ( function_exists( 'wp_get_wp_version' ) ) {
+		return wp_get_wp_version();
+	}
+	return get_bloginfo( 'version' );
+}
+
+function newest_core_offer( $offers, $installed ) {
+	$newest = null;
+	foreach ( $offers as $offer ) {
+		if ( ! is_object( $offer ) || ! isset( $offer->response, $offer->current ) ) {
+			continue;
+		}
+		if ( ! in_array( $offer->response, array( 'upgrade', 'autoupdate' ), true ) ) {
+			continue;
+		}
+
+		$version = (string) $offer->current;
+		if ( ! version_compare( $version, $installed, '>' ) ) {
+			continue;
+		}
+		if ( null === $newest || version_compare( $version, $newest, '>' ) ) {
+			$newest = $version;
+		}
+	}
+	return $newest;
+}
+
 function core_status() {
-	$installed = function_exists( 'wp_get_wp_version' ) ? wp_get_wp_version() : get_bloginfo( 'version' );
+	$installed = installed_core_version();
 	$cached    = get_site_transient( 'update_core' );
 
-	$last_checked = is_object( $cached ) && ! empty( $cached->last_checked ) ? (int) $cached->last_checked : null;
-	$checked      = null !== $last_checked
+	$last_checked = null;
+	if ( is_object( $cached ) && ! empty( $cached->last_checked ) ) {
+		$last_checked = (int) $cached->last_checked;
+	}
+
+	$checked = null !== $last_checked
 		&& isset( $cached->version_checked, $cached->updates )
 		&& $cached->version_checked === $installed
 		&& is_array( $cached->updates );
 
 	$offered = null;
 	if ( $checked ) {
-		foreach ( $cached->updates as $offer ) {
-			if ( ! is_object( $offer ) || ! isset( $offer->response, $offer->current ) ) {
-				continue;
-			}
-			if ( ! in_array( $offer->response, array( 'upgrade', 'autoupdate' ), true ) ) {
-				continue;
-			}
-			$version = (string) $offer->current;
-			if ( version_compare( $version, $installed, '>' ) && ( null === $offered || version_compare( $version, $offered, '>' ) ) ) {
-				$offered = $version;
-			}
-		}
+		$offered = newest_core_offer( $cached->updates, $installed );
 	}
 
 	return array(
@@ -180,6 +222,14 @@ function core_status() {
 		'offered'     => $offered,
 		'lastChecked' => $last_checked,
 	);
+}
+
+function offered_version( $item ) {
+	$item = (array) $item;
+	if ( isset( $item['new_version'] ) && is_scalar( $item['new_version'] ) ) {
+		return (string) $item['new_version'];
+	}
+	return null;
 }
 
 function transient_status( $cached ) {
@@ -195,22 +245,26 @@ function transient_status( $cached ) {
 
 	$updates = array();
 	foreach ( (array) ( $cached->response ?? array() ) as $id => $item ) {
-		$item             = (array) $item;
-		$updates[ "$id" ] =isset( $item['new_version'] ) && is_scalar( $item['new_version'] ) ? (string) $item['new_version'] : null;
+		$updates[ (string) $id ] = offered_version( $item );
 	}
 
 	$checked_versions = array();
 	foreach ( (array) ( $cached->checked ?? array() ) as $id => $version ) {
 		if ( is_scalar( $version ) ) {
-			$checked_versions[ "$id" ] = (string) $version;
+			$checked_versions[ (string) $id ] = (string) $version;
 		}
+	}
+
+	$no_update = array();
+	foreach ( array_keys( (array) ( $cached->no_update ?? array() ) ) as $id ) {
+		$no_update[] = (string) $id;
 	}
 
 	return array(
 		'checked'         => true,
 		'lastChecked'     => (int) $cached->last_checked,
 		'updates'         => (object) $updates,
-		'noUpdate'        => array_map( 'strval', array_keys( (array) ( $cached->no_update ?? array() ) ) ),
+		'noUpdate'        => $no_update,
 		'checkedVersions' => (object) $checked_versions,
 	);
 }
@@ -218,10 +272,19 @@ function transient_status( $cached ) {
 function extra_plugins( $plugins ) {
 	$result = array();
 	foreach ( (array) $plugins as $file => $data ) {
+		$name = (string) $file;
+		if ( ! empty( $data['Name'] ) ) {
+			$name = (string) $data['Name'];
+		}
+		$version = '';
+		if ( isset( $data['Version'] ) ) {
+			$version = (string) $data['Version'];
+		}
+
 		$result[] = array(
 			'file'    => (string) $file,
-			'name'    => ! empty( $data['Name'] ) ? (string) $data['Name'] : (string) $file,
-			'version' => isset( $data['Version'] ) ? (string) $data['Version'] : '',
+			'name'    => $name,
+			'version' => $version,
 		);
 	}
 	return $result;

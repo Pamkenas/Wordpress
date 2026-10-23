@@ -9,7 +9,7 @@ import {
   startSampleSites,
   type FixtureSite,
 } from "./sample/fixtures.ts";
-import { writeSnapshots } from "./snapshot.ts";
+import { writeSnapshots, type RunOptions } from "./snapshot.ts";
 import type { SiteInventory } from "./types.ts";
 
 export interface CollectionRun {
@@ -17,7 +17,7 @@ export interface CollectionRun {
   dir: string;
 }
 
-function runOptions(options: CollectOptions) {
+function runOptions(options: CollectOptions): RunOptions {
   return { concurrency: options.concurrency, timeoutMs: options.timeoutMs, retries: options.retries };
 }
 
@@ -60,12 +60,18 @@ async function collectSampleRun(
   }
 }
 
+function onlySites(fixtures: readonly FixtureSite[], siteIds: ReadonlySet<string>): FixtureSite[] {
+  return fixtures.filter((fixture) => siteIds.has(fixture.siteId));
+}
+
 export async function collectSample(
   siteIds: ReadonlySet<string>,
   options: CollectOptions,
   snapshotsRoot: string = SAMPLE_OUTPUT.snapshots,
 ): Promise<CollectionRun> {
-  const pick = (fixtures: readonly FixtureSite[]) => fixtures.filter((fixture) => siteIds.has(fixture.siteId));
-  await collectSampleRun(pick(SAMPLE_PREVIOUS_SITES), SAMPLE_DATES.previous, options, snapshotsRoot);
-  return collectSampleRun(pick(SAMPLE_SITES), SAMPLE_DATES.current, options, snapshotsRoot);
+  const previousSites = onlySites(SAMPLE_PREVIOUS_SITES, siteIds);
+  await collectSampleRun(previousSites, SAMPLE_DATES.previous, options, snapshotsRoot);
+
+  const currentSites = onlySites(SAMPLE_SITES, siteIds);
+  return collectSampleRun(currentSites, SAMPLE_DATES.current, options, snapshotsRoot);
 }

@@ -39,23 +39,13 @@ export interface UpdateInfo {
   updateNote: string | null;
 }
 
-export interface SiteInventory {
-  schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
-  siteId: string;
-  clientId: string;
-  siteUrl: string;
-  checkedAt: string;
-  fetchStatus: FetchStatus;
-  error: string | null;
-  errors: CollectionError[];
-
-  core: {
-    installedVersion: string | null;
-    availableVersion: string | null;
-  } & Omit<UpdateInfo, "offeredVersion">;
-
-  plugins: PluginInventory[];
-  themes: ThemeInventory[];
+export interface CoreInventory {
+  installedVersion: string | null;
+  availableVersion: string | null;
+  updateAvailable: VerificationStatus;
+  source: string;
+  lastCheck: string | null;
+  updateNote: string | null;
 }
 
 export interface PluginInventory extends UpdateInfo {
@@ -71,4 +61,18 @@ export interface ThemeInventory extends UpdateInfo {
   name: string;
   installedVersion: string | null;
   status: ActivationStatus;
+}
+
+export interface SiteInventory {
+  schemaVersion: number;
+  siteId: string;
+  clientId: string;
+  siteUrl: string;
+  checkedAt: string;
+  fetchStatus: FetchStatus;
+  error: string | null;
+  errors: CollectionError[];
+  core: CoreInventory;
+  plugins: PluginInventory[];
+  themes: ThemeInventory[];
 }

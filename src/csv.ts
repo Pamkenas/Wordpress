@@ -3,6 +3,13 @@ import { ConfigError } from "./config.ts";
 
 export type CsvDelimiter = "," | ";";
 
+export function normalizeKeyword(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
+}
+
 export interface CsvRow {
   row: number;
   values: Record<string, string>;
@@ -72,8 +79,15 @@ function escapeField(value: string, delimiter: CsvDelimiter): string {
   return text;
 }
 
+function csvLine(row: string[], delimiter: CsvDelimiter): string {
+  const fields: string[] = [];
+  for (const value of row) fields.push(escapeField(value, delimiter));
+  return fields.join(delimiter);
+}
+
 export function toCsv(rows: string[][], delimiter: CsvDelimiter): string {
-  const lines = rows.map((row) => row.map((value) => escapeField(value, delimiter)).join(delimiter));
+  const lines: string[] = [];
+  for (const row of rows) lines.push(csvLine(row, delimiter));
   return `\uFEFF${lines.join("\r\n")}\r\n`;
 }
 
@@ -123,9 +137,10 @@ export async function readCsvFile(
     if (cells.every((cell) => cell.trim() === "")) continue;
 
     const values: Record<string, string> = {};
-    header.forEach((column, index) => {
-      values[column] = (cells[index] ?? "").trim();
-    });
+    for (let column = 0; column < header.length; column++) {
+      const name = header[column] ?? "";
+      values[name] = (cells[column] ?? "").trim();
+    }
     rows.push({ row: i + 1, values });
   }
 

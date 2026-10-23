@@ -83,34 +83,38 @@ export function table(headers: string[], rows: TableCell[][], widths: Size[], em
 }
 
 export function keyValues(pairs: Array<[string, Content]>): Content {
+  const body: TableCell[][] = [];
+  for (const [key, value] of pairs) {
+    body.push([{ text: key, color: COLORS.muted }, value as TableCell]);
+  }
   return {
-    table: {
-      widths: [110, "*"],
-      body: pairs.map(([key, value]) => [{ text: key, color: COLORS.muted }, value as TableCell]),
-    },
+    table: { widths: [110, "*"], body },
     layout: "noBorders",
     margin: [0, 0, 0, 6],
   };
 }
 
+const GOOD_STATES = ["success", "current", "valid", "not-required"];
+const BAD_STATES = ["failed", "not-collected", "expired", "missing"];
+
 export function statusColor(status: string): string {
-  if (status === "success" || status === "current" || status === "valid" || status === "not-required")
-    return COLORS.good;
-  if (status === "failed" || status === "not-collected" || status === "expired" || status === "missing")
-    return COLORS.bad;
+  if (GOOD_STATES.includes(status)) return COLORS.good;
+  if (BAD_STATES.includes(status)) return COLORS.bad;
   return COLORS.warning;
 }
 
-export function pageFooter(left: string, page: (current: number, total: number) => string) {
-  return (currentPage: number, pageCount: number): Content => ({
-    columns: [
-      { text: left, width: "*" },
-      { text: page(currentPage, pageCount), width: "auto" },
-    ],
-    margin: [40, 18, 40, 0],
-    fontSize: 7.5,
-    color: COLORS.muted,
-  });
+export function pageFooter(left: string, pageLabel: (page: number, total: number) => string) {
+  return function footer(currentPage: number, pageCount: number): Content {
+    return {
+      columns: [
+        { text: left, width: "*" },
+        { text: pageLabel(currentPage, pageCount), width: "auto" },
+      ],
+      margin: [40, 18, 40, 0],
+      fontSize: 7.5,
+      color: COLORS.muted,
+    };
+  };
 }
 
 export function baseDocument(title: string, content: Content[], landscape = false): TDocumentDefinitions {

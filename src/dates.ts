@@ -38,8 +38,12 @@ function pad(value: number): string {
 }
 
 function splitIsoDate(value: string): { year: number; month: number; day: number } {
-  const [year = 0, month = 1, day = 1] = value.slice(0, 10).split("-").map(Number);
-  return { year, month, day };
+  const parts = value.slice(0, 10).split("-");
+  return {
+    year: Number(parts[0]),
+    month: Number(parts[1] ?? "1"),
+    day: Number(parts[2] ?? "1"),
+  };
 }
 
 function isRealDate(year: number, month: number, day: number): boolean {

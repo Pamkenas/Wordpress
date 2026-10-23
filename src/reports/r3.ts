@@ -3,6 +3,7 @@ import type { AgencyConfig } from "../agency.ts";
 import { formatDate, formatDateTime, formatPeriod } from "../dates.ts";
 import type { MaintenanceEntry } from "../maintenance-log.ts";
 import {
+  componentsOfType,
   displayName,
   licenseProblems,
   pendingUpdates,
@@ -15,22 +16,33 @@ import { CLIENT_TEXT, type ClientText } from "./text.ts";
 
 const MAX_NAMES = 8;
 
+function sectionTitle(title: string, color: string): Content {
+  return { text: title, fontSize: 12, bold: true, color, margin: [0, 16, 0, 6], headlineLevel: 1 };
+}
+
+function versionsText(entry: MaintenanceEntry): string {
+  if (entry.versionBefore && entry.versionAfter) return ` (${entry.versionBefore} ${ARROW} ${entry.versionAfter})`;
+  if (entry.versionAfter) return ` (${entry.versionAfter})`;
+  if (entry.versionBefore) return ` (${entry.versionBefore})`;
+  return "";
+}
+
 function describeWork(entry: MaintenanceEntry, report: SiteReport, text: ClientText): string {
   const name = displayName(report, entry.component);
-  let versions = "";
-  if (entry.versionBefore && entry.versionAfter) {
-    versions = ` (${entry.versionBefore} ${ARROW} ${entry.versionAfter})`;
-  } else if (entry.versionAfter || entry.versionBefore) {
-    versions = ` (${entry.versionAfter ?? entry.versionBefore})`;
-  }
-  return `${text.actions[entry.action]}: ${name}${versions}`;
+  return `${text.actions[entry.action]}: ${name}${versionsText(entry)}`;
 }
 
 function nameList(components: ComponentLine[], text: ClientText): string {
   const names = components.map((component) => component.name);
   const shown = names.slice(0, MAX_NAMES).join(", ");
   const rest = names.length - MAX_NAMES;
-  return rest > 0 ? `${shown}, ${text.andMore(rest)}` : shown;
+  if (rest > 0) return `${shown}, ${text.andMore(rest)}`;
+  return shown;
+}
+
+function licenseStatusText(component: ComponentLine, text: ClientText): string {
+  if (component.license === "expired") return text.licenseStatus.expired;
+  return text.licenseStatus.missing;
 }
 
 function issues(report: SiteReport, text: ClientText): string[] {
@@ -48,8 +60,7 @@ function issues(report: SiteReport, text: ClientText): string[] {
   if (unknown.length > 0) list.push(text.manualItems(unknown.length));
 
   for (const component of licenseProblems(report)) {
-    const status = component.license === "expired" ? text.licenseStatus.expired : text.licenseStatus.missing;
-    list.push(text.license(component.name, status));
+    list.push(text.license(component.name, licenseStatusText(component, text)));
   }
   return list;
 }
@@ -60,9 +71,9 @@ function statusSection(report: SiteReport, text: ClientText, agency: AgencyConfi
     return [{ text: text.statusUnavailable, margin: [0, 0, 0, 4] }];
   }
 
-  const core = report.components.find((component) => component.itemType === "core");
-  const plugins = report.components.filter((component) => component.itemType === "plugin");
-  const themes = report.components.filter((component) => component.itemType === "theme");
+  const core = componentsOfType(report, "core")[0];
+  const plugins = componentsOfType(report, "plugin");
+  const themes = componentsOfType(report, "theme");
   const activePlugins = plugins.filter((plugin) => plugin.status === "active").length;
 
   const section: Content[] = [
@@ -75,8 +86,24 @@ function statusSection(report: SiteReport, text: ClientText, agency: AgencyConfi
       [text.manualCheck, String(unknownUpdates(report).length)],
     ]),
   ];
-  if (report.status === "partial") section.push({ text: text.partialNote, italics: true, color: COLORS.muted });
+  if (report.status === "partial") {
+    section.push({ text: text.partialNote, italics: true, color: COLORS.muted });
+  }
   return section;
+}
+
+function headerBlock(agency: AgencyConfig, logo: string | null, period: string): Content {
+  let brandCell: Content = { text: agency.agencyName, fontSize: 15, bold: true, color: agency.primaryColor };
+  if (logo) brandCell = { image: "logo", fit: [150, 46] };
+
+  return {
+    columns: [brandCell, { text: period, alignment: "right", color: COLORS.muted, margin: [0, 6, 0, 0] }],
+  };
+}
+
+function issuesBlock(issueList: string[], text: ClientText): Content {
+  if (issueList.length === 0) return { text: text.noIssues };
+  return { ul: issueList, margin: [0, 0, 0, 4] };
 }
 
 export function buildR3Pdf(report: SiteReport, agency: AgencyConfig, logo: string | null): TDocumentDefinitions {
@@ -84,29 +111,14 @@ export function buildR3Pdf(report: SiteReport, agency: AgencyConfig, logo: strin
   const language = agency.language;
   const brand = agency.primaryColor;
   const period = formatPeriod(report.period, language);
-  const sectionTitle = (title: string): Content => ({
-    text: title,
-    fontSize: 12,
-    bold: true,
-    color: brand,
-    margin: [0, 16, 0, 6],
-    headlineLevel: 1,
-  });
 
   const workRows: TableCell[][] = report.work.map((entry) => [
     formatDate(entry.date, language),
     describeWork(entry, report, text),
   ]);
 
-  const issueList = issues(report, text);
-
   const content: Content[] = [
-    {
-      columns: [
-        logo ? { image: "logo", fit: [150, 46] } : { text: agency.agencyName, fontSize: 15, bold: true, color: brand },
-        { text: period, alignment: "right", color: COLORS.muted, margin: [0, 6, 0, 0] },
-      ],
-    },
+    headerBlock(agency, logo, period),
     { text: text.title, fontSize: 20, bold: true, color: brand, margin: [0, 20, 0, 10] },
     keyValues([
       [text.client, report.clientName],
@@ -115,14 +127,14 @@ export function buildR3Pdf(report: SiteReport, agency: AgencyConfig, logo: strin
     ]),
     { text: text.intro, margin: [0, 2, 0, 0] },
 
-    sectionTitle(text.workTitle),
+    sectionTitle(text.workTitle, brand),
     table([text.workDate, text.workDone], workRows, [80, "*"], text.noWork),
 
-    sectionTitle(text.statusTitle),
+    sectionTitle(text.statusTitle, brand),
     ...statusSection(report, text, agency),
 
-    sectionTitle(text.issuesTitle),
-    issueList.length > 0 ? { ul: issueList, margin: [0, 0, 0, 4] } : { text: text.noIssues },
+    sectionTitle(text.issuesTitle, brand),
+    issuesBlock(issues(report, text), text),
   ];
 
   if (agency.contactEmail) {
@@ -133,7 +145,11 @@ export function buildR3Pdf(report: SiteReport, agency: AgencyConfig, logo: strin
   doc.background = (_page, size) => ({
     canvas: [{ type: "rect", x: 0, y: 0, w: size.width, h: 6, color: brand }],
   });
-  doc.footer = pageFooter(agency.website ? `${agency.agencyName} · ${agency.website}` : agency.agencyName, text.page);
+
+  let footerText = agency.agencyName;
+  if (agency.website) footerText = `${agency.agencyName} · ${agency.website}`;
+  doc.footer = pageFooter(footerText, text.page);
+
   if (logo) doc.images = { logo };
   return doc;
 }

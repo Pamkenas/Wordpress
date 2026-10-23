@@ -4,7 +4,7 @@ import { diffInventories, type Change, type ItemType } from "./diff.ts";
 import { effectiveLicenseStatus, type LicenseRecord, type LicenseStatus } from "./licenses.ts";
 import { isConfirmed, type MaintenanceEntry } from "./maintenance-log.ts";
 import type { SnapshotPair } from "./snapshot.ts";
-import type { FetchStatus, SiteInventory, VerificationStatus } from "./types.ts";
+import type { FetchStatus, PluginInventory, SiteInventory, ThemeInventory, VerificationStatus } from "./types.ts";
 
 export type SiteStatus = FetchStatus | "not-collected";
 
@@ -27,6 +27,11 @@ export interface ComponentLine {
 export interface OrphanLicense {
   record: LicenseRecord;
   suggestion: string | null;
+}
+
+export interface ReportProblem {
+  siteId: string;
+  message: string;
 }
 
 export interface SiteReport {
@@ -65,68 +70,73 @@ export interface SiteSummary {
   unconfirmedWork: number;
 }
 
+function coreLine(inventory: SiteInventory): ComponentLine {
+  const core = inventory.core;
+  return {
+    itemType: "core",
+    identifier: "wordpress",
+    name: "WordPress",
+    kind: "core",
+    installedVersion: core.installedVersion,
+    status: "active",
+    updateAvailable: core.updateAvailable,
+    offeredVersion: core.availableVersion,
+    updateNote: core.updateNote,
+    source: core.source,
+    lastCheck: core.lastCheck,
+    license: "n/a",
+    licenseRecord: null,
+  };
+}
+
+function pluginLine(plugin: PluginInventory, record: LicenseRecord | undefined, asOf: string): ComponentLine {
+  return {
+    itemType: "plugin",
+    identifier: plugin.identifier,
+    name: plugin.name,
+    kind: plugin.kind,
+    installedVersion: plugin.installedVersion,
+    status: plugin.status,
+    updateAvailable: plugin.updateAvailable,
+    offeredVersion: plugin.offeredVersion,
+    updateNote: plugin.updateNote,
+    source: plugin.source,
+    lastCheck: plugin.lastCheck,
+    license: effectiveLicenseStatus(record, asOf),
+    licenseRecord: record ?? null,
+  };
+}
+
+function themeLine(theme: ThemeInventory, record: LicenseRecord | undefined, asOf: string): ComponentLine {
+  return {
+    itemType: "theme",
+    identifier: theme.slug,
+    name: theme.name,
+    kind: "theme",
+    installedVersion: theme.installedVersion,
+    status: theme.status,
+    updateAvailable: theme.updateAvailable,
+    offeredVersion: theme.offeredVersion,
+    updateNote: theme.updateNote,
+    source: theme.source,
+    lastCheck: theme.lastCheck,
+    license: effectiveLicenseStatus(record, asOf),
+    licenseRecord: record ?? null,
+  };
+}
+
 function buildComponents(
   inventory: SiteInventory,
   licenses: Map<string, LicenseRecord>,
   asOf: string,
 ): ComponentLine[] {
-  const { core } = inventory;
-  const lines: ComponentLine[] = [
-    {
-      itemType: "core",
-      identifier: "wordpress",
-      name: "WordPress",
-      kind: "core",
-      installedVersion: core.installedVersion,
-      status: "active",
-      updateAvailable: core.updateAvailable,
-      offeredVersion: core.availableVersion,
-      updateNote: core.updateNote,
-      source: core.source,
-      lastCheck: core.lastCheck,
-      license: "n/a",
-      licenseRecord: null,
-    },
-  ];
-
+  const lines: ComponentLine[] = [coreLine(inventory)];
   for (const plugin of inventory.plugins) {
-    const record = licenses.get(plugin.identifier);
-    lines.push({
-      itemType: "plugin",
-      identifier: plugin.identifier,
-      name: plugin.name,
-      kind: plugin.kind,
-      installedVersion: plugin.installedVersion,
-      status: plugin.status,
-      updateAvailable: plugin.updateAvailable,
-      offeredVersion: plugin.offeredVersion,
-      updateNote: plugin.updateNote,
-      source: plugin.source,
-      lastCheck: plugin.lastCheck,
-      license: effectiveLicenseStatus(record, asOf),
-      licenseRecord: record ?? null,
-    });
+    lines.push(pluginLine(plugin, licenses.get(plugin.identifier), asOf));
   }
-
   for (const theme of inventory.themes) {
-    const record = licenses.get(theme.slug);
-    lines.push({
-      itemType: "theme",
-      identifier: theme.slug,
-      name: theme.name,
-      kind: "theme",
-      installedVersion: theme.installedVersion,
-      status: theme.status,
-      updateAvailable: theme.updateAvailable,
-      offeredVersion: theme.offeredVersion,
-      updateNote: theme.updateNote,
-      source: theme.source,
-      lastCheck: theme.lastCheck,
-      license: effectiveLicenseStatus(record, asOf),
-      licenseRecord: record ?? null,
-    });
+    lines.push(themeLine(theme, licenses.get(theme.slug), asOf));
   }
-
   return lines;
 }
 
@@ -139,7 +149,19 @@ function suggestIdentifier(identifier: string, components: ComponentLine[]): str
   return null;
 }
 
-function namesOf(inventory: SiteInventory | null, names: Map<string, string>): void {
+function findOrphans(records: LicenseRecord[], components: ComponentLine[]): OrphanLicense[] {
+  const installed = new Set<string>();
+  for (const component of components) installed.add(component.identifier);
+
+  const orphans: OrphanLicense[] = [];
+  for (const record of records) {
+    if (installed.has(record.identifier)) continue;
+    orphans.push({ record, suggestion: suggestIdentifier(record.identifier, components) });
+  }
+  return orphans;
+}
+
+function addNames(inventory: SiteInventory | null, names: Map<string, string>): void {
   if (!inventory) return;
   for (const plugin of inventory.plugins) names.set(plugin.identifier, plugin.name);
   for (const theme of inventory.themes) names.set(theme.slug, theme.name);
@@ -153,26 +175,32 @@ export function buildSiteReport(
   log: readonly MaintenanceEntry[],
 ): SiteReport {
   const asOf = pair.currentDate ?? periodEnd(period);
+
   const siteLicenses = licenses.filter((record) => record.siteId === site.siteId);
-  const licenseMap = new Map(siteLicenses.map((record) => [record.identifier, record]));
+  const licenseMap = new Map<string, LicenseRecord>();
+  for (const record of siteLicenses) licenseMap.set(record.identifier, record);
 
-  const inventory = pair.current && pair.current.fetchStatus !== "failed" ? pair.current : null;
+  let inventory: SiteInventory | null = null;
+  if (pair.current && pair.current.fetchStatus !== "failed") inventory = pair.current;
+
   const components = inventory ? buildComponents(inventory, licenseMap, asOf) : [];
-
-  const installed = new Set(components.map((component) => component.identifier));
-  const orphanLicenses: OrphanLicense[] = [];
-  if (inventory) {
-    for (const record of siteLicenses) {
-      if (installed.has(record.identifier)) continue;
-      orphanLicenses.push({ record, suggestion: suggestIdentifier(record.identifier, components) });
-    }
-  }
+  const orphanLicenses = inventory ? findOrphans(siteLicenses, components) : [];
+  const themesCollected = inventory !== null && !inventory.errors.some((error) => error.source === "themes");
 
   const knownNames = new Map<string, string>();
-  namesOf(pair.baseline, knownNames);
-  namesOf(pair.current, knownNames);
+  addNames(pair.baseline, knownNames);
+  addNames(pair.current, knownNames);
 
-  const siteLog = log.filter((entry) => entry.siteId === site.siteId && isInPeriod(entry.date, period));
+  const work: MaintenanceEntry[] = [];
+  const unconfirmedWork: MaintenanceEntry[] = [];
+  for (const entry of log) {
+    if (entry.siteId !== site.siteId || !isInPeriod(entry.date, period)) continue;
+    if (isConfirmed(entry)) work.push(entry);
+    else unconfirmedWork.push(entry);
+  }
+
+  let changes: Change[] | null = null;
+  if (pair.current && pair.baseline) changes = diffInventories(pair.baseline, pair.current);
 
   return {
     site,
@@ -184,12 +212,12 @@ export function buildSiteReport(
     currentDate: pair.currentDate,
     baselineDate: pair.baselineDate,
     components,
-    themesCollected: inventory !== null && !inventory.errors.some((error) => error.source === "themes"),
-    changes: pair.current && pair.baseline ? diffInventories(pair.baseline, pair.current) : null,
+    themesCollected,
+    changes,
     licenses: siteLicenses,
     orphanLicenses,
-    work: siteLog.filter((entry) => isConfirmed(entry)),
-    unconfirmedWork: siteLog.filter((entry) => !isConfirmed(entry)),
+    work,
+    unconfirmedWork,
     knownNames,
   };
 }
@@ -210,25 +238,31 @@ export function unregisteredComponents(report: SiteReport): ComponentLine[] {
   return report.components.filter((component) => component.itemType !== "core" && component.licenseRecord === null);
 }
 
+export function componentsOfType(report: SiteReport, itemType: ItemType): ComponentLine[] {
+  return report.components.filter((component) => component.itemType === itemType);
+}
+
 export function displayName(report: SiteReport, component: string): string {
   const key = component.trim();
-  if (["core", "wordpress", "wordpress core"].includes(key.toLowerCase())) return "WordPress";
+  const lower = key.toLowerCase();
+  if (lower === "core" || lower === "wordpress" || lower === "wordpress core") return "WordPress";
   return report.knownNames.get(key) ?? key;
 }
 
 export function summarizeReport(report: SiteReport): SiteSummary {
+  const unknownLicenses = report.components.filter((component) => component.license === "unknown");
   return {
     siteId: report.site.siteId,
     clientId: report.site.clientId,
     status: report.status,
     snapshotDate: report.currentDate,
     baselineDate: report.baselineDate,
-    plugins: report.components.filter((component) => component.itemType === "plugin").length,
-    themes: report.components.filter((component) => component.itemType === "theme").length,
+    plugins: componentsOfType(report, "plugin").length,
+    themes: componentsOfType(report, "theme").length,
     updatesAvailable: pendingUpdates(report).length,
     unknownUpdateStates: unknownUpdates(report).length,
     licenseIssues: licenseProblems(report).length,
-    licenseUnknown: report.components.filter((component) => component.license === "unknown").length,
+    licenseUnknown: unknownLicenses.length,
     changes: report.changes ? report.changes.length : null,
     confirmedWork: report.work.length,
     unconfirmedWork: report.unconfirmedWork.length,

@@ -27,6 +27,8 @@ Naming: snapshot JSON uses camelCase (TypeScript convention). CSV and PDF report
 | `partial` | plugin list read; themes and/or status endpoint missing. Inventory is usable, but some update states are `unknown` |
 | `failed` | plugin list could not be read (401, 403, timeout, TLS, missing password...). Whatever else was read is kept |
 
+The collector asks each site one question at a time (plugins, then themes, then the status endpoint). If the site can't be reached at all (timeout, network error, TLS error or redirect), it skips the remaining requests instead of waiting for each one to time out, so `errors` holds only that first problem.
+
 ## Plugin (ALL: active, inactive, must-use, drop-in)
 
 | Spec field | Snapshot key | Type | Source |

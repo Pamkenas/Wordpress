@@ -28,16 +28,18 @@ export interface RawExtraPlugin {
   version: string;
 }
 
+export interface RawCore {
+  installed: string;
+  checked: boolean;
+  offered: string | null;
+  lastChecked: number | null;
+}
+
 export interface RawStatus {
   schemaVersion: number;
   pluginVersion: string;
   generatedAt: string;
-  core: {
-    installed: string;
-    checked: boolean;
-    offered: string | null;
-    lastChecked: number | null;
-  };
+  core: RawCore;
   plugins: UpdateTransient;
   themes: UpdateTransient;
   mustUsePlugins: RawExtraPlugin[];
@@ -52,7 +54,7 @@ export interface ClientOptions {
 
 export const DEFAULT_CLIENT_OPTIONS: ClientOptions = { timeoutMs: 15000, retries: 2, retryDelayMs: 1000 };
 
-const RETRYABLE: ReadonlySet<ErrorKind> = new Set(["timeout", "network", "rate-limited", "server"]);
+const RETRYABLE_KINDS: ErrorKind[] = ["timeout", "network", "rate-limited", "server"];
 const MAX_RETRY_AFTER_MS = 10000;
 const TLS_ERROR = /CERT|SSL|TLS|SELF_SIGNED|UNABLE_TO_VERIFY|ALTNAME/;
 
@@ -73,8 +75,80 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isStringMap(value: unknown): value is Record<string, string | null> {
-  return isRecord(value) && Object.values(value).every((v) => typeof v === "string" || v === null);
+function isTextOrNull(value: unknown): boolean {
+  return value === null || typeof value === "string";
+}
+
+function isNumberOrNull(value: unknown): boolean {
+  return value === null || typeof value === "number";
+}
+
+function isListOf(value: unknown, check: (item: unknown) => boolean): boolean {
+  return Array.isArray(value) && value.every(check);
+}
+
+function isTextMap(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every(isTextOrNull);
+}
+
+function isRawPlugin(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.plugin === "string" &&
+    typeof value.name === "string" &&
+    typeof value.status === "string" &&
+    typeof value.version === "string"
+  );
+}
+
+function isRawTheme(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const hasName = typeof value.name === "string" || isRecord(value.name);
+  return (
+    typeof value.stylesheet === "string" &&
+    hasName &&
+    typeof value.status === "string" &&
+    typeof value.version === "string"
+  );
+}
+
+function isExtraPlugin(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return typeof value.file === "string" && typeof value.name === "string" && typeof value.version === "string";
+}
+
+function isTransient(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.checked === "boolean" &&
+    isNumberOrNull(value.lastChecked) &&
+    isTextMap(value.updates) &&
+    isListOf(value.noUpdate, (id) => typeof id === "string") &&
+    isTextMap(value.checkedVersions)
+  );
+}
+
+function isRawCore(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.installed === "string" &&
+    typeof value.checked === "boolean" &&
+    isTextOrNull(value.offered) &&
+    isNumberOrNull(value.lastChecked)
+  );
+}
+
+function isRawStatus(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    value.schemaVersion === 1 &&
+    isRawCore(value.core) &&
+    isTransient(value.plugins) &&
+    isTransient(value.themes) &&
+    isListOf(value.mustUsePlugins, isExtraPlugin) &&
+    isListOf(value.dropins, isExtraPlugin)
+  );
 }
 
 function clean(text: string, max = 200): string {
@@ -82,7 +156,8 @@ function clean(text: string, max = 200): string {
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
+  if (plain.length <= max) return plain;
+  return `${plain.slice(0, max - 1)}…`;
 }
 
 function kindForStatus(status: number): ErrorKind {
@@ -97,10 +172,27 @@ function kindForStatus(status: number): ErrorKind {
 function parseRetryAfter(header: string | null): number | null {
   if (!header) return null;
   const seconds = Number(header);
-  return Number.isFinite(seconds) ? Math.min(seconds * 1000, MAX_RETRY_AFTER_MS) : null;
+  if (!Number.isFinite(seconds)) return null;
+  return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
 }
 
-function describeFetchFailure(error: unknown, route: string): WordPressApiError {
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function invalidShape(route: string): WordPressApiError {
+  return new WordPressApiError("invalid-response", null, `unexpected response shape (GET ${route})`);
+}
+
+function fetchFailure(error: unknown, route: string): WordPressApiError {
   if (error instanceof DOMException && error.name === "TimeoutError") {
     return new WordPressApiError("timeout", null, `timed out (GET ${route})`);
   }
@@ -111,72 +203,35 @@ function describeFetchFailure(error: unknown, route: string): WordPressApiError 
     return new WordPressApiError("tls", null, `TLS certificate verification failed: ${code} (GET ${route})`);
   }
 
-  const detail = code || cause?.message || (error instanceof Error ? error.message : String(error));
+  let detail = code;
+  if (!detail) detail = cause?.message ?? "";
+  if (!detail) detail = error instanceof Error ? error.message : String(error);
   return new WordPressApiError("network", null, `network error: ${clean(detail)} (GET ${route})`);
 }
 
-function validatePlugins(data: unknown): RawPlugin[] | null {
-  if (!Array.isArray(data)) return null;
-  const valid = data.every(
-    (p) =>
-      isRecord(p) &&
-      typeof p.plugin === "string" &&
-      typeof p.name === "string" &&
-      typeof p.status === "string" &&
-      typeof p.version === "string",
-  );
-  return valid ? (data as RawPlugin[]) : null;
-}
+function httpError(response: Response, data: unknown, route: string): WordPressApiError {
+  const kind = kindForStatus(response.status);
 
-function validateThemes(data: unknown): RawTheme[] | null {
-  if (!Array.isArray(data)) return null;
-  const valid = data.every(
-    (t) =>
-      isRecord(t) &&
-      typeof t.stylesheet === "string" &&
-      (typeof t.name === "string" || isRecord(t.name)) &&
-      typeof t.status === "string" &&
-      typeof t.version === "string",
-  );
-  return valid ? (data as RawTheme[]) : null;
-}
+  let code: string | null = null;
+  let wordpressMessage: string | null = null;
+  if (isRecord(data)) {
+    if (typeof data.code === "string") code = clean(data.code, 80);
+    if (typeof data.message === "string") wordpressMessage = clean(data.message);
+  }
 
-function validTransient(t: unknown): t is UpdateTransient {
-  return (
-    isRecord(t) &&
-    typeof t.checked === "boolean" &&
-    (t.lastChecked === null || typeof t.lastChecked === "number") &&
-    isStringMap(t.updates) &&
-    Array.isArray(t.noUpdate) &&
-    t.noUpdate.every((id) => typeof id === "string") &&
-    isStringMap(t.checkedVersions)
-  );
-}
+  let message = `HTTP ${response.status}`;
+  if (code) message += ` ${code}`;
+  if (wordpressMessage) message += `: ${wordpressMessage}`;
+  message += ` (GET ${route})`;
 
-function validExtras(list: unknown): list is RawExtraPlugin[] {
-  return (
-    Array.isArray(list) &&
-    list.every(
-      (p) => isRecord(p) && typeof p.file === "string" && typeof p.name === "string" && typeof p.version === "string",
-    )
-  );
-}
+  if (code === "rest_not_logged_in") {
+    message += "; WordPress did not receive the credentials (check that the server passes the Authorization header)";
+  } else if (kind === "not-found" && code === null) {
+    message += "; REST API not reachable at /wp-json/ (check permalinks and the site URL)";
+  }
 
-function validateStatus(data: unknown): RawStatus | null {
-  if (!isRecord(data) || data.schemaVersion !== 1 || !isRecord(data.core)) return null;
-  const { core } = data;
-  const coreValid =
-    typeof core.installed === "string" &&
-    typeof core.checked === "boolean" &&
-    (core.offered === null || typeof core.offered === "string") &&
-    (core.lastChecked === null || typeof core.lastChecked === "number");
-  const valid =
-    coreValid &&
-    validTransient(data.plugins) &&
-    validTransient(data.themes) &&
-    validExtras(data.mustUsePlugins) &&
-    validExtras(data.dropins);
-  return valid ? (data as unknown as RawStatus) : null;
+  const retryAfter = parseRetryAfter(response.headers.get("retry-after"));
+  return new WordPressApiError(kind, response.status, message, retryAfter);
 }
 
 export class WordPressClient {
@@ -188,64 +243,64 @@ export class WordPressClient {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.options = { ...DEFAULT_CLIENT_OPTIONS, ...options };
 
-    const credentials = Buffer.from(`${username}:${applicationPassword.replace(/\s+/g, "")}`).toString("base64");
-
+    const password = applicationPassword.replace(/\s+/g, "");
+    const credentials = Buffer.from(`${username}:${password}`).toString("base64");
     this.authorization = `Basic ${credentials}`;
   }
 
   async getPlugins(): Promise<RawPlugin[]> {
     const route = "/wp/v2/plugins";
-    return this.validated(route, await this.get(route, "plugin,name,status,version"), validatePlugins);
+    const data = await this.get(route, "plugin,name,status,version");
+    if (!isListOf(data, isRawPlugin)) throw invalidShape(route);
+    return data as RawPlugin[];
   }
 
   async getThemes(): Promise<RawTheme[]> {
     const route = "/wp/v2/themes";
-    return this.validated(route, await this.get(route, "stylesheet,name,status,version"), validateThemes);
+    const data = await this.get(route, "stylesheet,name,status,version");
+    if (!isListOf(data, isRawTheme)) throw invalidShape(route);
+    return data as RawTheme[];
   }
 
   async getStatus(): Promise<RawStatus> {
     const route = "/agency-maintenance/v1/status";
-    return this.validated(route, await this.get(route), validateStatus);
+    const data = await this.get(route, "");
+    if (!isRawStatus(data)) throw invalidShape(route);
+    return data as RawStatus;
   }
 
-  private validated<T>(route: string, data: unknown, validate: (data: unknown) => T | null): T {
-    const result = validate(data);
-    if (result === null) {
-      throw new WordPressApiError("invalid-response", null, `unexpected response shape (GET ${route})`);
-    }
-    return result;
-  }
-
-  private async get(route: string, fields?: string): Promise<unknown> {
-    for (let attempt = 0; ; attempt++) {
+  private async get(route: string, fields: string): Promise<unknown> {
+    let attempt = 0;
+    while (true) {
       try {
-        return await this.attempt(route, fields);
+        return await this.request(route, fields);
       } catch (error) {
-        const retryable = error instanceof WordPressApiError && RETRYABLE.has(error.kind);
-        if (!retryable || attempt >= this.options.retries) throw error;
+        const canRetry = error instanceof WordPressApiError && RETRYABLE_KINDS.includes(error.kind);
+        if (!canRetry || attempt >= this.options.retries) throw error;
+
         const delay = error.retryAfterMs ?? this.options.retryDelayMs * 2 ** attempt;
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await sleep(delay);
+        attempt++;
       }
     }
   }
 
-  private async attempt(route: string, fields?: string): Promise<unknown> {
+  private async request(route: string, fields: string): Promise<unknown> {
     const url = new URL(`${this.baseUrl}/wp-json${route}`);
     if (fields) url.searchParams.set("_fields", fields);
 
     let response: Response;
+    let body: string;
     try {
       response = await fetch(url, {
         method: "GET",
-        headers: {
-          Authorization: this.authorization,
-          Accept: "application/json",
-        },
+        headers: { Authorization: this.authorization, Accept: "application/json" },
         redirect: "manual",
         signal: AbortSignal.timeout(this.options.timeoutMs),
       });
+      body = await response.text();
     } catch (error) {
-      throw describeFetchFailure(error, route);
+      throw fetchFailure(error, route);
     }
 
     if (response.status >= 300 && response.status < 400) {
@@ -257,23 +312,8 @@ export class WordPressClient {
       );
     }
 
-    let body: string;
-    try {
-      body = await response.text();
-    } catch (error) {
-      throw describeFetchFailure(error, route);
-    }
-
-    let data: unknown;
-    try {
-      data = JSON.parse(body);
-    } catch {
-      data = undefined;
-    }
-
-    if (!response.ok) {
-      throw this.httpError(response, data, route);
-    }
+    const data = parseJson(body);
+    if (!response.ok) throw httpError(response, data, route);
 
     if (data === undefined) {
       const type = response.headers.get("content-type") ?? "no content type";
@@ -285,20 +325,5 @@ export class WordPressClient {
     }
 
     return data;
-  }
-
-  private httpError(response: Response, data: unknown, route: string): WordPressApiError {
-    const kind = kindForStatus(response.status);
-    const wpCode = isRecord(data) && typeof data.code === "string" ? clean(data.code, 80) : null;
-    const wpMessage = isRecord(data) && typeof data.message === "string" ? clean(data.message) : null;
-
-    let message = `HTTP ${response.status}${wpCode ? ` ${wpCode}` : ""}${wpMessage ? `: ${wpMessage}` : ""} (GET ${route})`;
-    if (wpCode === "rest_not_logged_in") {
-      message += "; WordPress did not receive the credentials (check that the server passes the Authorization header)";
-    } else if (kind === "not-found" && wpCode === null) {
-      message += "; REST API not reachable at /wp-json/ (check permalinks and the site URL)";
-    }
-
-    return new WordPressApiError(kind, response.status, message, parseRetryAfter(response.headers.get("retry-after")));
   }
 }

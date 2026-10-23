@@ -6,16 +6,30 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { collectSites } from "../src/collect.ts";
 import { SAMPLE_SITES } from "../src/sample/fixtures.ts";
-import { listSnapshotDates, pickSnapshots, readSnapshot, snapshotDate, writeSnapshots } from "../src/snapshot.ts";
+import {
+  listSnapshotDates,
+  pickSnapshots,
+  readSnapshot,
+  snapshotDate,
+  writeSnapshots,
+  type RunInfo,
+} from "../src/snapshot.ts";
 import { FAST, TEST_PASSWORD, tempDir, withMockSites } from "./helpers.ts";
 
 const CLI = fileURLToPath(new URL("../src/index.ts", import.meta.url));
 
-function runCli(args: string[], env: NodeJS.ProcessEnv = {}, cwd?: string) {
+const TEST_RUN: RunInfo = {
+  mode: "sample",
+  startedAt: "s",
+  finishedAt: "f",
+  options: { concurrency: 2, timeoutMs: 1, retries: 0 },
+};
+
+function runCli(args: string[], env: NodeJS.ProcessEnv = {}, cwd: string = process.cwd()) {
   return spawnSync(process.execPath, [CLI, ...args], {
     encoding: "utf8",
     env: { ...process.env, ...env },
-    ...(cwd && { cwd }),
+    cwd,
   });
 }
 
@@ -29,12 +43,7 @@ test("snapshots get deterministic names, are replaced on re-run, and contain no 
     await withMockSites([...SAMPLE_SITES], async (sites) => {
       const inventories = await collectSites(sites, { ...FAST, concurrency: 2 });
       const date = new Date(2026, 9, 21, 9, 0);
-      const run = {
-        mode: "sample" as const,
-        startedAt: "s",
-        finishedAt: "f",
-        options: { concurrency: 2, timeoutMs: 1, retries: 0 },
-      };
+      const run = TEST_RUN;
 
       await writeSnapshots(root, date, inventories, run);
       const { dir } = await writeSnapshots(root, date, inventories, run);
@@ -62,12 +71,7 @@ test("snapshots are read back, validated and paired with the right baseline", as
   try {
     await withMockSites([...SAMPLE_SITES], async (sites) => {
       const inventories = await collectSites(sites, { ...FAST, concurrency: 2 });
-      const run = {
-        mode: "sample" as const,
-        startedAt: "s",
-        finishedAt: "f",
-        options: { concurrency: 2, timeoutMs: 1, retries: 0 },
-      };
+      const run = TEST_RUN;
       await writeSnapshots(root, new Date(2026, 8, 28), inventories, run);
       await writeSnapshots(root, new Date(2026, 9, 5), inventories, run);
       await writeSnapshots(root, new Date(2026, 9, 20), inventories, run);
