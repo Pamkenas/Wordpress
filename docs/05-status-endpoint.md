@@ -1,6 +1,8 @@
 # 05 · Status endpoint and client-site onboarding (Week 2)
 
-Plugin: [wordpress-plugin/agency-maintenance-status/](../wordpress-plugin/agency-maintenance-status/) (single PHP file, no dependencies, PHP ≥ 7.4, WordPress ≥ 5.6, single-site installs).
+Plugin: [wordpress-plugin/agency-maintenance-status/](../wordpress-plugin/agency-maintenance-status/), version 1.0.1 (single PHP file, no dependencies, PHP ≥ 7.4, WordPress ≥ 5.6, single-site installs).
+
+The plugin is not on WordPress.org and declares `Update URI: false`, so WordPress never asks WordPress.org about it. That also stops an unrelated plugin with the same slug from ever being offered as an "update". The collector instead compares the version installed on each site with the version in this repository (`src/agency-plugin.ts`): an older copy is reported as an update, so the plugin never shows up as "unknown". To update a site, copy the folder again (or upload the new zip) and check that `yarn collect --site <id>` shows it as current.
 
 ## API contract
 
@@ -21,7 +23,7 @@ Response headers: `Cache-Control: no-store, private`. Response body, with illust
 ```jsonc
 {
   "schemaVersion": 1,                 // the collector rejects other versions as invalid-response
-  "pluginVersion": "1.0.0",
+  "pluginVersion": "1.0.1",
   "generatedAt": "2026-10-21T07:29:15+00:00",
   "core": {
     "installed": "7.1.3",

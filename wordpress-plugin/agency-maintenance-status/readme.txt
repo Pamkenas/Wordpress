@@ -2,7 +2,7 @@
 Requires at least: 5.6
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPL-2.0-or-later
 
 Read-only REST endpoint for the agency's maintenance inventory collector.
@@ -35,7 +35,14 @@ Deactivating the plugin removes the role, so the account loses all access.
 
 Give the account no other role. A user who also has another role is not treated as an auditor.
 
+The plugin is not on WordPress.org and declares "Update URI: false", so WordPress never offers
+an update for it from WordPress.org (not even a different plugin with the same slug). The
+collector reports an update when the site runs an older version than the agency's repository.
+
 == Changelog ==
+
+= 1.0.1 =
+* Update URI: false, so WordPress.org can never offer an unrelated plugin as an update.
 
 = 1.0.0 =
 * First release: status endpoint, auditor role, read-only guards.

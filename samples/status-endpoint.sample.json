@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "1.0.0",
-  "generatedAt": "2026-10-21T07:29:15+00:00",
+  "pluginVersion": "1.0.1",
+  "generatedAt": "2026-10-23T09:17:51+00:00",
   "core": {
     "installed": "7.1.3",
     "checked": true,
     "offered": null,
-    "lastChecked": 1792567635
+    "lastChecked": 1792746851
   },
   "plugins": {
     "checked": true,
-    "lastChecked": 1792567642,
+    "lastChecked": 1792746851,
     "updates": {},
     "noUpdate": [
       "akismet/akismet.php",
@@ -21,6 +21,7 @@
       "woocommerce/woocommerce.php"
     ],
     "checkedVersions": {
+      "agency-maintenance-status/agency-maintenance-status.php": "1.0.0",
       "akismet/akismet.php": "5.7.2",
       "cleantalk-spam-protect/cleantalk.php": "6.90",
       "classic-editor/classic-editor.php": "1.7.0",
@@ -31,7 +32,7 @@
   },
   "themes": {
     "checked": true,
-    "lastChecked": 1792567643,
+    "lastChecked": 1792746852,
     "updates": {},
     "noUpdate": [
       "twentytwentyfive",

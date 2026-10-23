@@ -2,12 +2,13 @@
 /**
  * Plugin Name:       Agency Maintenance Status
  * Description:       Read-only REST endpoint (GET /wp-json/agency-maintenance/v1/status) with the WordPress core version and WordPress' cached update data, for the agency maintenance collector. Adds a least-privilege "Maintenance Auditor" role that cannot change anything.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       agency-maintenance-status
+ * Update URI:        false
  *
  * @package AgencyMaintenanceStatus
  */
@@ -22,7 +23,7 @@ use WP_User;
 
 defined( 'ABSPATH' ) || exit;
 
-const VERSION        = '1.0.0';
+const VERSION        = '1.0.1';
 const SCHEMA_VERSION = 1;
 const REST_NAMESPACE = 'agency-maintenance/v1';
 const CAPABILITY     = 'view_agency_maintenance_status';

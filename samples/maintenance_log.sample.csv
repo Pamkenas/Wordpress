@@ -1,0 +1,7 @@
+site_id,date,action,component,version_before,version_after,confirmation_by,confirmation_at,notes
+demo-shop,2026-09-12,update,wp-mail-smtp/wp_mail_smtp.php,4.5.0,4.6.0,Marko (demo),2026-09-12 09:30,September work: not in the October report
+demo-portfolio,2026-10-02,security-check,Login and user account review,,,Ana (demo),2026-10-02 11:00,No issues found
+demo-bakery,2026-10-07,backup,Full site backup before updates,,,Ana (demo),2026-10-07 14:50,UpdraftPlus to remote storage
+demo-bakery,2026-10-07,update,elementor/elementor.php,3.31.0,3.32.1,Ana (demo),2026-10-07 15:10,Tested on staging first
+demo-shop,2026-10-14,install,simple-gallery/simple-gallery.php,,2.1.0,Marko (demo),2026-10-14 10:05,Requested by client in ticket 1042
+demo-shop,2026-10-16,remove,old-slider/old-slider.php,4.2.0,,,,Waiting for client approval before confirming

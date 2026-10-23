@@ -1,0 +1,9 @@
+{
+  "agencyName": "Your Agency d.o.o.",
+  "contactEmail": "support@your-agency.example",
+  "website": "https://your-agency.example",
+  "primaryColor": "#1f6f8b",
+  "logo": "",
+  "language": "sl",
+  "csvDelimiter": ","
+}

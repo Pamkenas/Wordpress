@@ -59,6 +59,16 @@ Re-running the setup script is safe: it updates the plugin files, resets the use
 | Status plugin deactivated → collector | `failed`, 403 on plugins and themes (role removed, fail-safe) |
 | Reactivated → collector | `success` again |
 
+## Verified on 2026-10-23 (Weeks 3–4)
+
+| Check | Result |
+|---|---|
+| `yarn wpm check` | clients.json, password variable, agency.json and snapshots OK; missing `licenses.csv` and `maintenance_log.csv` shown as notes |
+| `yarn wpm run` | collection `success`, reports for 2026-10 written: R1 PDF + CSV, R2 and R3 for `local-test`, `_report.json` |
+| Agency plugin 1.0.0 on the site, 1.0.1 in the repository | reported as an update (`1.0.0 → 1.0.1`), not as unknown |
+| After copying 1.0.1 to the site | 0 updates, 0 unknown. R2 lists the change 1.0.0 → 1.0.1 under "Detected changes (observations)" against the 2026-10-21 snapshot. R3 shows no work (none was logged) and "no open issues". |
+| Licenses and work without register or log files | every license `unknown`, R3 "no maintenance work recorded". No test records were invented in the real files. |
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
@@ -68,3 +78,4 @@ Re-running the setup script is safe: it updates the plugin files, resets the use
 | `HTTP 404 ... REST API not reachable at /wp-json/` | plain permalinks or a wrong URL; enable pretty permalinks (Settings → Permalinks → Save) |
 | `HTTP 404 rest_no_route ... status` | status plugin not installed or not active. Result is `partial`, with every update state unknown |
 | `"url" must use https://` | add `"allowInsecureHttp": true` to the site entry, but only for a local test instance |
+| MySQL in XAMPP stops at once; `C:\xampp\mysql\data\mysql_error.log` says `Can't open and lock privilege tables: Incorrect file format 'roles_mapping'` | a system table was damaged by an unclean stop (computer shut down while MySQL ran). With MySQL stopped, copy the three `roles_mapping.*` files somewhere safe, copy the same three from `C:\xampp\mysql\backup\mysql\` into `C:\xampp\mysql\data\mysql\`, then start MySQL. The table is empty in a default XAMPP, so nothing is lost. Always stop MySQL with the XAMPP Control Panel's **Stop** button before shutting down. (Fixed this way on 2026-10-23; the damaged copies are in `C:\xampp\mysql\roles_mapping-damaged-2026-10-23\`.) |

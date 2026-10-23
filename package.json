@@ -1,7 +1,7 @@
 {
   "name": "wordpress-maintenance",
-  "version": "0.2.0",
-  "description": "Read-only WordPress maintenance inventory collector (Claude Code skill MVP)",
+  "version": "0.4.0",
+  "description": "Read-only WordPress maintenance inventory and monthly reports (Claude Code skill MVP)",
   "type": "module",
   "license": "MIT",
   "private": true,
@@ -9,9 +9,14 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "collect": "node src/index.ts",
-    "collect:dry-run": "node src/index.ts --dry-run",
-    "collect:sample": "node src/index.ts --sample",
+    "wpm": "node src/index.ts",
+    "check-config": "node src/index.ts check",
+    "collect": "node src/index.ts collect",
+    "collect:dry-run": "node src/index.ts check",
+    "collect:sample": "node src/index.ts collect --sample",
+    "report": "node src/index.ts report",
+    "monthly": "node src/index.ts run",
+    "demo": "node src/index.ts run --sample",
     "test": "node --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p .",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"*.json\"",
@@ -20,11 +25,13 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
+    "@types/pdfmake": "0.3.3",
     "prettier": "3.6.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "dotenv": "^18.0.8"
+    "dotenv": "^18.0.8",
+    "pdfmake": "0.3.11"
   }
 }

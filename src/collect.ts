@@ -1,3 +1,4 @@
+import { AGENCY_PLUGIN_ID, agencyPluginUpdate } from "./agency-plugin.ts";
 import type { SiteConfig } from "./config.ts";
 import {
   WordPressApiError,
@@ -22,6 +23,7 @@ import {
 
 export interface CollectOptions extends ClientOptions {
   concurrency: number;
+  now?: () => Date;
 }
 
 const NOTE = {
@@ -99,13 +101,17 @@ function normalizePlugins(raw: RawPlugin[], status: RawStatus | null): PluginInv
   const plugins: PluginInventory[] = raw.map((p) => {
     const identifier = `${p.plugin}.php`;
     const installedVersion = p.version || null;
+    const update =
+      identifier === AGENCY_PLUGIN_ID
+        ? agencyPluginUpdate(installedVersion)
+        : resolveUpdate(identifier, installedVersion, status?.plugins ?? null, "update_plugins transient");
     return {
       identifier,
       kind: "plugin",
       name: p.name || identifier,
       installedVersion,
       status: toStatus(p.status),
-      ...resolveUpdate(identifier, installedVersion, status?.plugins ?? null, "update_plugins transient"),
+      ...update,
     };
   });
 
@@ -241,11 +247,11 @@ export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (it
 }
 
 export function collectSites(sites: readonly SiteConfig[], options: CollectOptions): Promise<SiteInventory[]> {
-  const { concurrency, ...clientOptions } = options;
+  const { concurrency, now = () => new Date(), ...clientOptions } = options;
   return mapLimit(sites, concurrency, async (site) => {
-    const startedAt = new Date().toISOString();
+    const startedAt = now().toISOString();
     try {
-      return await collectSite(site, clientOptions);
+      return await collectSite(site, clientOptions, now);
     } catch (error) {
       const failed = emptyInventory(site, startedAt);
       failed.errors.push(toError("plugins", error));

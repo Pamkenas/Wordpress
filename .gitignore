@@ -5,8 +5,12 @@ node_modules/
 .env.*
 !.env.example
 
-# Client data: real site list, snapshots and reports stay on the agency machine
-clients.json
-snapshots/
-reports/
-sample-output/
+# Client data: real site list, license register, work log, snapshots and reports stay on the agency machine.
+# Anchored with "/" so that only the root folders match (src/reports/ is source code).
+/clients.json
+/licenses.csv
+/maintenance_log.csv
+/snapshots/
+/reports/
+/sample-output/
+*.tmp

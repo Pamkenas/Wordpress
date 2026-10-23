@@ -1,6 +1,50 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { crc32, deflateSync } from "node:zlib";
 import type { SiteConfig } from "../src/config.ts";
 import { buildMockSite, SAMPLE_SITES, type FixtureSite } from "../src/sample/fixtures.ts";
 import { startMockWordPress, type MockWordPress } from "../src/sample/mock-wordpress.ts";
+
+export async function tempDir(): Promise<string> {
+  return mkdtemp(join(tmpdir(), "wp-maint-"));
+}
+
+export function textOf(node: unknown): string {
+  if (node === null || node === undefined) return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("\n");
+  if (typeof node === "object") {
+    const record = node as Record<string, unknown>;
+    return ["text", "stack", "columns", "ul", "ol", "table", "body"].map((key) => textOf(record[key])).join("\n");
+  }
+  return "";
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const checksum = Buffer.alloc(4);
+  checksum.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, checksum]);
+}
+
+export function tinyPng(width = 8, height = 8): Buffer {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, 0x40)]);
+  const pixels = Buffer.concat(Array.from({ length: height }, () => row));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(pixels)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
 
 export const TEST_PASSWORD = "abcd EFGH 1234 ijkl MNOP 5678";
 export const TEST_PASSWORD_ENV = "TEST_WP_APP_PASSWORD";

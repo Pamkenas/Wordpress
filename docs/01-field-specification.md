@@ -71,9 +71,22 @@ A missing update entry is **never** read as "up to date". `resolveUpdate()` in [
 | — | must-use plugin / drop-in | unknown | WordPress does not check these |
 | core | `update_core.version_checked` ≠ installed version | unknown | check missing or older than installed version |
 
-## Fields owned by later weeks (agreed now so the keys stay stable)
+## License register and maintenance log (implemented in Weeks 3–4)
 
-| Register | Key fields | Notes |
+| File | Columns | Notes |
 |---|---|---|
-| License register (Week 3) | site_id, plugin identifier, license_status, expiry_date?, vendor, owner, verification_source, verified_at, notes | joined on **site_id + plugin identifier** (never the display name). A plugin missing from the register shows `license_status = unknown` |
-| Maintenance log (Week 4) | site_id, date, action, component, version_before?, version_after?, confirmation_by, confirmation_at, notes | only these rows can appear in R3 as work performed |
+| `licenses.csv` | site_id, plugin_identifier, license_status, expiry_date?, vendor, owner, verification_source, verified_at, notes | joined on **site_id + plugin identifier** (never the display name). A plugin missing from the register shows `license_status = unknown` |
+| `maintenance_log.csv` | site_id, date, action, component, version_before?, version_after?, confirmation_by, confirmation_at, notes | only confirmed rows (both confirmation columns filled) appear in R3 as work performed |
+
+Allowed values, validation rules and Excel tips: [06](06-license-register-and-maintenance-log.md).
+
+## Agency settings (`agency.json`)
+
+| Key | Default | Used for |
+|---|---|---|
+| `agencyName` | required | R3 header and footer, R1/R2 footer |
+| `contactEmail`, `website` | none | R3 contact line and footer |
+| `primaryColor` | `#1f6f8b` | R3 top bar and headings |
+| `logo` | none | `.png` or `.jpg`, path relative to `agency.json`; replaces the agency name in the R3 header |
+| `language` | `en` | R3 language: `en` or `sl` (R1 and R2 are always English) |
+| `csvDelimiter` | `,` | R1 CSV separator: `,` or `;` (Slovenian Excel) |

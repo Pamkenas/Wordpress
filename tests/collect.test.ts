@@ -1,8 +1,43 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, test } from "node:test";
+import { AGENCY_PLUGIN_ID, BUNDLED_PLUGIN_VERSION } from "../src/agency-plugin.ts";
 import { collectSite, collectSites, resolveUpdate } from "../src/collect.ts";
 import { SAMPLE_SITES, type FixtureSite } from "../src/sample/fixtures.ts";
 import { FAST, sampleFixture, withMockSites } from "./helpers.ts";
+
+describe("the agency's own status plugin", () => {
+  test("its header version and the VERSION constant in the PHP file match", async () => {
+    const php = await readFile(
+      new URL("../wordpress-plugin/agency-maintenance-status/agency-maintenance-status.php", import.meta.url),
+      "utf8",
+    );
+    const constant = /const VERSION\s*=\s*'([^']+)'/.exec(php)?.[1];
+    assert.ok(BUNDLED_PLUGIN_VERSION);
+    assert.equal(constant, BUNDLED_PLUGIN_VERSION);
+    assert.match(php, /^\s*\*\s*Update URI:\s*false$/m);
+  });
+
+  test("is compared with the version in this repository instead of being 'unknown'", async () => {
+    const withPlugin = (siteId: string, version: string): FixtureSite => ({
+      ...sampleFixture("demo-portfolio"),
+      siteId,
+      statusEndpoint: true,
+      plugins: [{ id: AGENCY_PLUGIN_ID, name: "Agency Maintenance Status", version, untracked: true }],
+    });
+
+    await withMockSites(
+      [withPlugin("old-copy", "0.9.0"), withPlugin("same-copy", BUNDLED_PLUGIN_VERSION ?? "")],
+      async (sites) => {
+        const [old, same] = await collectSites(sites, { ...FAST, concurrency: 2 });
+        const oldPlugin = byId(old?.plugins ?? [], AGENCY_PLUGIN_ID);
+        assert.equal(oldPlugin.updateAvailable, "yes");
+        assert.equal(oldPlugin.offeredVersion, BUNDLED_PLUGIN_VERSION);
+        assert.equal(byId(same?.plugins ?? [], AGENCY_PLUGIN_ID).updateAvailable, "no");
+      },
+    );
+  });
+});
 
 const byId = <T extends { identifier: string }>(items: T[], id: string): T => {
   const item = items.find((i) => i.identifier === id);

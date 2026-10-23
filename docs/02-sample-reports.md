@@ -1,64 +1,89 @@
-# 02 · Sample reports (confirmed layout, Week 1)
+# 02 · Reports R1, R2 and R3
 
-The three report types from spec §4, with their contents and file names, agreed before implementation (Weeks 3–4). Sample data comes from the demo sites (`yarn collect:sample`); it contains no client information.
+Layout agreed in Week 1, implemented in Weeks 3–4 (`src/reports/`). Every picture and sample below comes from the demo sites (`yarn demo`) and contains no client information.
+
+```powershell
+yarn report                      # month of the newest snapshot
+yarn report --period 2026-10     # a specific month
+yarn demo                        # demo: collect two months of demo sites, then report
+```
 
 ## Output files
 
-File names are deterministic: they depend only on the period and validated ids.
+File names depend only on the month and the validated site ids. Running the report again for the same month replaces the files.
 
 ```
 reports/
 └── 2026-10/
-    ├── r1-consolidated-2026-10.pdf          R1  internal, all sites
+    ├── r1-consolidated-2026-10.pdf          R1  internal, all sites (landscape)
     ├── r1-inventory-2026-10.csv             R1  internal, every item on every site
-    ├── r2-internal-demo-shop-2026-10.pdf    R2  internal, one per site
-    └── r3-client-demo-shop-2026-10.pdf      R3  client-facing, one per site
+    ├── r2-internal-<siteId>-2026-10.pdf     R2  internal, one per site
+    ├── r3-client-<siteId>-2026-10.pdf       R3  for the client, one per site
+    └── _report.json                         summary for the Claude skill (no secrets)
 ```
 
-## R1: Consolidated internal (PDF + CSV)
+If the folder holds an `r1-`/`r2-`/`r3-` file that the run did not write (for example a site removed from `clients.json`), the command prints a `NOTE` saying the file is out of date. Don't send it.
 
-**CSV**: one row per item (core, plugin, must-use, drop-in, theme) per site, **including sites and items with no updates**. A failed site gets one `item_type = site` row with the error, so it can't silently drop out of the spreadsheet. See [samples/r1-inventory.sample.csv](../samples/r1-inventory.sample.csv) (40 rows from 4 demo sites).
+## Which snapshots a report uses
+
+| | Rule |
+|---|---|
+| **Current** | the newest snapshot of the site **inside** the month. If that collection failed, the report says so; it doesn't fall back to an older inventory. |
+| **Baseline** for detected changes | the newest **successful** snapshot **before** the month starts. If there is none, the oldest successful snapshot earlier in the same month. |
+| **No snapshot in the month** | the site is reported as `not-collected`, never as "OK". |
+| **License expiry** | judged on the current snapshot's date (or the month's last day): `valid` with a past `expiry_date` becomes `expired`. |
+| **Maintenance work** | log rows whose `date` is inside the month. Only confirmed rows count as work (see [06](06-license-register-and-maintenance-log.md)). |
+
+## R1: Consolidated internal report (PDF + CSV)
+
+![R1 consolidated report, first page](images/r1-consolidated.png)
+
+**PDF** (A4 landscape): an overview with counts, then one row per site (status, WordPress version, plugins, themes, updates, unknown states, license issues, detected changes, confirmed work), collection problems, pending updates across all sites, and expired or missing licenses.
+
+**CSV**: one row per item (core, plugin, must-use, drop-in, theme) per site, **including sites and items with no updates**. A failed or missing site gets one `item_type = site` row with the reason, so it can't drop out of the spreadsheet unnoticed. Sample: [samples/r1-inventory.sample.csv](../samples/r1-inventory.sample.csv).
 
 | Column | Example | Filter use |
 |---|---|---|
-| client_id, site_id, site_url | demo-client-b, demo-shop, https://demo-shop.example | by site / client |
-| checked_at, fetch_status | 2026-10-21T07:29:14Z, success | stale or failed sites |
-| item_type | core / plugin / must-use / drop-in / theme / site | |
+| client_id, site_id, site_url | demo-client-b, demo-shop, https://demo-shop.example | by site or client |
+| checked_at, fetch_status | 2026-10-21T07:00:00.000Z, success | stale or failed sites |
+| item_type | core, plugin, must-use, drop-in, theme, site | |
 | identifier, name | woocommerce/woocommerce.php, WooCommerce | **by plugin name** across all sites |
 | installed_version, status | 10.0.4, active | |
-| update_available, offered_version | true, 10.2.2 | **by update status** (`true`/`false`/`unknown`) |
-| license_status | unknown | **by license status** (from the Week 3 register) |
-| update_source, last_check, note | update_plugins transient, …, reason if unknown | |
+| update_available, offered_version | true, 10.2.2 | **by update status** (`true`, `false`, `unknown`) |
+| license_status | valid, expired, missing, not-required, unknown, n/a (core) | **by license status** |
+| update_source, last_check, note | update_plugins transient, …, the reason when unknown | |
 
-Encoding: UTF-8 with BOM and CRLF line endings, so Excel opens it with č/š/ž intact.
+Encoding: UTF-8 with BOM and CRLF line endings, so Excel shows č, š and ž correctly. Values starting with `=`, `+`, `-` or `@` get a leading `'`, so a plugin name from a client site can't run as an Excel formula. If Excel puts everything in one column (Slovenian Windows uses `;`), set `"csvDelimiter": ";"` in `agency.json`.
 
-**PDF summary**: one page per run:
+## R2: Per-site internal report (PDF)
 
-1. Header: period, run time, number of sites, success/partial/failed counts
-2. Site table: site, client, core version (+ offered), plugins, themes, updates available, unknown states, licence issues, status
-3. Collection errors: one line per failed or partial site, with the error kind and message
-4. Top pending updates across all sites (plugin → number of sites affected)
+![R2 internal report, first page](images/r2-internal-demo-shop.png)
 
-## R2: Per-client internal (PDF, one per site)
+1. Header: client, URL, snapshot date and time, collection status, baseline date
+2. Collection problems: source, kind, HTTP status, message
+3. WordPress core: installed version, update, last update check
+4. **All** plugins (active, inactive, must-use, drop-in) and **all** themes: version, status, update state with the reason when unknown, license state with expiry
+5. License register: every register row for the site, the effective status (`expired (recorded: valid)` when the date has passed), the list of installed components without a register row, and register rows for components that aren't installed (with a "did you mean" suggestion for typos)
+6. Detected changes (observations): added, removed, updated, downgraded, activated, deactivated, labelled as **not** proof of agency work
+7. Confirmed maintenance work, including internal notes
+8. Unconfirmed log entries, flagged as not in the client report
 
-1. Site header: client, URL, checked_at, fetch_status
-2. Core: installed, offered, last check
-3. Plugins: **all** plugins (active, inactive, must-use, drop-in) with version, status, update state, offered version, licence status. Unknown is shown as **Unknown**, with the reason, never left blank
-4. Themes: all themes, same columns
-5. License register: rows for this site; plugins without a register entry are listed as "not in register"
-6. Detected changes since the previous snapshot (Week 3 diff): *observations*, labelled "detected, not confirmed"
-7. Confirmed maintenance actions this period (from `maintenance_log.csv`)
-8. Collection errors
+## R3: Client report (branded PDF, Slovenian or English)
 
-## R3: Client-facing (branded PDF, one per site)
+![R3 client report](images/r3-client-demo-shop.png)
 
-1. Agency branding, client name, site, period
-2. Short explanation of what maintenance covers
-3. **Confirmed work performed**: only rows from the human-confirmed maintenance log
-4. Issues found and recommended next steps (for example, an update available that needs approval)
+Branding comes from `agency.json`: agency name or logo, the primary color (top bar and headings), website and contact e-mail. The language is `"language": "sl"` or `"en"`.
 
-**Never in R3**: credentials, usernames, raw notes, other clients' data, error stack traces, snapshot differences presented as work done, or any "all up to date" claim when states are unknown.
+1. Header: agency, client name, website, month
+2. Short explanation that only confirmed work is listed
+3. **Work performed**: only rows from the maintenance log with `confirmation_by` and `confirmation_at`, written as "Posodobitev: Elementor (3.31.0 › 3.32.1)"
+4. **Current status**: date of the automated check, WordPress version, plugins (active), themes, updates available, components that need a manual check. If the check failed or is missing, it says so instead.
+5. **Issues and next steps**: WordPress update, plugin and theme updates (names), components that need a manual check, expired or missing licenses. "No open issues" appears **only** when the check succeeded and nothing is unknown.
+
+**Never in R3**, enforced by tests: credentials and usernames, internal notes from the log or the register, error messages, unconfirmed log rows, detected changes, other clients or sites, and any "all fine" claim when the check failed or states are unknown.
+
+Always have a person read each R3 before it is sent.
 
 ## Sample snapshot
 
-[samples/snapshot.sample.json](../samples/snapshot.sample.json) is the real collector output for the `demo-shop` demo site (URL replaced with `https://demo-shop.example`). It shows every state: update available, current, inactive, premium (unknown), stale check (unknown), installed after the check (unknown), must-use, drop-in, active child theme and inactive parent theme.
+[samples/snapshot.sample.json](../samples/snapshot.sample.json) is the collector's real output for the `demo-shop` demo site. It shows every state: update available, current, inactive, premium (unknown), stale check (unknown), installed after the check (unknown), must-use, drop-in, active child theme and inactive parent theme.

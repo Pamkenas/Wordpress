@@ -1,0 +1,3 @@
+site_id,plugin_identifier,license_status,expiry_date,vendor,owner,verification_source,verified_at,notes
+acme-main,woocommerce/woocommerce.php,not-required,,Automattic,,wordpress.org,2026-10-01,Free plugin
+acme-main,pro-page-builder/pro-page-builder.php,valid,2027-06-30,Pro Builder Ltd,client,vendor portal,2026-10-01,Licence on the client account

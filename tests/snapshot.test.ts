@@ -1,20 +1,22 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { collectSites } from "../src/collect.ts";
 import { SAMPLE_SITES } from "../src/sample/fixtures.ts";
-import { snapshotDate, writeSnapshots } from "../src/snapshot.ts";
-import { FAST, TEST_PASSWORD, withMockSites } from "./helpers.ts";
+import { listSnapshotDates, pickSnapshots, readSnapshot, snapshotDate, writeSnapshots } from "../src/snapshot.ts";
+import { FAST, TEST_PASSWORD, tempDir, withMockSites } from "./helpers.ts";
 
-async function tempDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "wp-maint-"));
-}
+const CLI = fileURLToPath(new URL("../src/index.ts", import.meta.url));
 
-function runCli(args: string[], env: NodeJS.ProcessEnv = {}) {
-  return spawnSync(process.execPath, ["src/index.ts", ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+function runCli(args: string[], env: NodeJS.ProcessEnv = {}, cwd?: string) {
+  return spawnSync(process.execPath, [CLI, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+    ...(cwd && { cwd }),
+  });
 }
 
 test("snapshot folder uses the local calendar date", () => {
@@ -55,21 +57,87 @@ test("snapshots get deterministic names, are replaced on re-run, and contain no 
   }
 });
 
-test("CLI --sample writes snapshots for every demo site and exits 2 because one site failed", async () => {
-  const out = await tempDir();
+test("snapshots are read back, validated and paired with the right baseline", async () => {
+  const root = await tempDir();
   try {
-    const result = runCli(["--sample", "--out", out]);
-    assert.equal(result.status, 2, result.stderr);
-    assert.match(result.stdout, /FAILED\s+demo-blog/);
-    assert.match(result.stdout, /OK\s+demo-bakery\s+15 plugins/);
-    const [day] = await readdir(out);
-    assert.equal((await readdir(join(out, day!))).length, SAMPLE_SITES.length + 1);
+    await withMockSites([...SAMPLE_SITES], async (sites) => {
+      const inventories = await collectSites(sites, { ...FAST, concurrency: 2 });
+      const run = {
+        mode: "sample" as const,
+        startedAt: "s",
+        finishedAt: "f",
+        options: { concurrency: 2, timeoutMs: 1, retries: 0 },
+      };
+      await writeSnapshots(root, new Date(2026, 8, 28), inventories, run);
+      await writeSnapshots(root, new Date(2026, 9, 5), inventories, run);
+      await writeSnapshots(root, new Date(2026, 9, 20), inventories, run);
+    });
+    await mkdir(join(root, "not-a-date"));
+
+    const dates = await listSnapshotDates(root);
+    assert.deepEqual(dates, ["2026-09-28", "2026-10-05", "2026-10-20"]);
+
+    const pair = await pickSnapshots(root, dates, "demo-shop", "2026-10");
+    assert.equal(pair.currentDate, "2026-10-20");
+    assert.equal(pair.baselineDate, "2026-09-28");
+
+    const failed = await pickSnapshots(root, dates, "demo-blog", "2026-10");
+    assert.equal(failed.current?.fetchStatus, "failed");
+    assert.equal(failed.baseline, null);
+
+    assert.equal(await readSnapshot(root, "2026-10-20", "no-such-site"), null);
+    await writeFile(join(root, "2026-10-20", "demo-shop.json"), '{"schemaVersion": 99}');
+    await assert.rejects(readSnapshot(root, "2026-10-20", "demo-shop"), /not a schema 1 snapshot/);
   } finally {
-    await rm(out, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
   }
 });
 
-test("CLI --dry-run reports missing passwords without sending requests", async () => {
+test("CLI collect --sample writes two snapshot dates and exits 2 because one demo site fails", async () => {
+  const cwd = await tempDir();
+  try {
+    const result = runCli(["collect", "--sample"], {}, cwd);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stdout, /FAILED\s+demo-blog/);
+    assert.match(result.stdout, /OK\s+demo-bakery\s+15 plugins/);
+    const days = await readdir(join(cwd, "sample-output", "snapshots"));
+    assert.deepEqual(days.sort(), ["2026-09-23", "2026-10-21"]);
+    assert.equal(
+      (await readdir(join(cwd, "sample-output", "snapshots", "2026-10-21"))).length,
+      SAMPLE_SITES.length + 1,
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("CLI run --sample builds every report file", async () => {
+  const cwd = await tempDir();
+  try {
+    const result = runCli(["run", "--sample"], {}, cwd);
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stdout, /Reports for 2026-10/);
+    assert.match(result.stdout, /1 UNCONFIRMED/);
+    const files = await readdir(join(cwd, "sample-output", "reports", "2026-10"));
+    assert.equal(files.filter((file) => file.endsWith(".pdf")).length, 1 + SAMPLE_SITES.length * 2);
+    assert.ok(files.includes("r1-inventory-2026-10.csv"));
+    assert.ok(files.includes("_report.json"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("CLI rejects unknown commands and malformed periods with usage help", () => {
+  const unknown = runCli(["deploy"]);
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /unknown command "deploy"[\s\S]*Usage:/);
+
+  const period = runCli(["report", "--period", "2026-13", "--sample"]);
+  assert.equal(period.status, 1);
+  assert.match(period.stderr, /--period must look like 2026-10/);
+});
+
+test("CLI check reports missing passwords without sending requests", async () => {
   const dir = await tempDir();
   try {
     const config = join(dir, "clients.json");
@@ -80,18 +148,22 @@ test("CLI --dry-run reports missing passwords without sending requests", async (
         { siteId: "b", clientId: "c", url: "https://b.example", username: "u", passwordEnv: "DRY_RUN_UNSET" },
       ]),
     );
-    const result = runCli(["--dry-run", "--config", config], { DRY_RUN_SET: "secret-value", DRY_RUN_UNSET: "" });
+    const result = runCli(["check", "--config", config], { DRY_RUN_SET: "secret-value", DRY_RUN_UNSET: "" }, dir);
     assert.equal(result.status, 1);
     assert.match(result.stdout, /OK\s+a\b/);
     assert.match(result.stdout, /MISSING\s+b\b/);
-    assert.ok(!result.stdout.includes("secret-value"), "dry run must never print a password");
+    assert.match(result.stdout, /agency\.json is invalid/);
+    assert.ok(!result.stdout.includes("secret-value"), "check must never print a password");
+
+    const legacy = runCli(["collect", "--dry-run", "--config", config], { DRY_RUN_SET: "x" }, dir);
+    assert.match(legacy.stdout, /Check: 2 site\(s\)/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
 test("CLI refuses to run with TLS verification disabled", () => {
-  const result = runCli(["--dry-run", "--config", "clients.example.json"], { NODE_TLS_REJECT_UNAUTHORIZED: "0" });
+  const result = runCli(["check", "--config", "clients.example.json"], { NODE_TLS_REJECT_UNAUTHORIZED: "0" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /NODE_TLS_REJECT_UNAUTHORIZED/);
 });

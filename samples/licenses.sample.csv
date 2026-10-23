@@ -1,0 +1,10 @@
+site_id,plugin_identifier,license_status,expiry_date,vendor,owner,verification_source,verified_at,notes
+demo-bakery,elementor/elementor.php,not-required,,Elementor,,wordpress.org (free version),2026-10-01,Free version
+demo-bakery,updraftplus/updraftplus.php,not-required,,UpdraftPlus,,wordpress.org (free version),2026-10-01,
+demo-bakery,wordfence/wordfence.php,valid,2027-03-31,Defiant,agency,vendor portal,2026-10-01,Premium licence on the agency account
+demo-shop,pro-page-builder/pro-page-builder.php,valid,2026-09-30,Pro Builder Ltd,client,vendor portal,2026-09-15,Renewal invoice sent to client on 2026-09-20
+demo-shop,simple-gallery/simple-gallery.php,missing,,Gallery Co,client,client e-mail,2026-10-14,Pro add-on bought by client; key not received yet
+demo-shop,woocommerce/woocommerce.php,not-required,,Automattic,,wordpress.org,2026-10-01,
+demo-shop,storefront-child,not-required,,,agency,agency-built child theme,2026-10-01,
+demo-shop,wp-mail-smtp,not-required,,WP Mail SMTP,,wordpress.org,2026-10-01,
+demo-portfolio,wordpress-seo/wp-seo.php,not-required,,Yoast,,wordpress.org,2026-10-01,

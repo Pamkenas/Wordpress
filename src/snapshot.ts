@@ -1,6 +1,15 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { localDate, periodStart } from "./dates.ts";
+import { writeFileAtomic } from "./files.ts";
 import { SNAPSHOT_SCHEMA_VERSION, type SiteInventory } from "./types.ts";
+
+export interface SnapshotPair {
+  current: SiteInventory | null;
+  currentDate: string | null;
+  baseline: SiteInventory | null;
+  baselineDate: string | null;
+}
 
 export interface RunSummary {
   schemaVersion: typeof SNAPSHOT_SCHEMA_VERSION;
@@ -21,8 +30,7 @@ export interface RunSummary {
 }
 
 export function snapshotDate(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return localDate(date);
 }
 
 export function summarize(inventory: SiteInventory): RunSummary["sites"][number] {
@@ -39,10 +47,8 @@ export function summarize(inventory: SiteInventory): RunSummary["sites"][number]
   };
 }
 
-async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
-  const tmp = `${path}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await rename(tmp, path);
+export async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
+  await writeFileAtomic(path, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 export async function writeSnapshots(
@@ -67,4 +73,90 @@ export async function writeSnapshots(
   files.push(summaryFile);
 
   return { dir, files };
+}
+
+export async function listSnapshotDates(root: string): Promise<string[]> {
+  try {
+    const entries = await readdir(root, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(entry.name))
+      .map((entry) => entry.name)
+      .sort();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+function isSnapshot(data: unknown, siteId: string): data is SiteInventory {
+  if (typeof data !== "object" || data === null) return false;
+  const snapshot = data as Record<string, unknown>;
+  return (
+    snapshot.schemaVersion === SNAPSHOT_SCHEMA_VERSION &&
+    snapshot.siteId === siteId &&
+    typeof snapshot.checkedAt === "string" &&
+    ["success", "partial", "failed"].includes(snapshot.fetchStatus as string) &&
+    typeof snapshot.core === "object" &&
+    snapshot.core !== null &&
+    Array.isArray(snapshot.plugins) &&
+    Array.isArray(snapshot.themes) &&
+    Array.isArray(snapshot.errors)
+  );
+}
+
+export async function readSnapshot(root: string, date: string, siteId: string): Promise<SiteInventory | null> {
+  const file = join(root, date, `${siteId}.json`);
+  let text: string;
+  try {
+    text = await readFile(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`${file} is not valid JSON`);
+  }
+  if (!isSnapshot(data, siteId)) {
+    throw new Error(`${file} is not a schema ${SNAPSHOT_SCHEMA_VERSION} snapshot of ${siteId}`);
+  }
+  return data;
+}
+
+export async function pickSnapshots(
+  root: string,
+  dates: readonly string[],
+  siteId: string,
+  period: string,
+): Promise<SnapshotPair> {
+  const pair: SnapshotPair = { current: null, currentDate: null, baseline: null, baselineDate: null };
+  const inPeriod = dates.filter((date) => date.startsWith(`${period}-`));
+
+  for (const date of [...inPeriod].reverse()) {
+    const snapshot = await readSnapshot(root, date, siteId);
+    if (snapshot) {
+      pair.current = snapshot;
+      pair.currentDate = date;
+      break;
+    }
+  }
+
+  const currentDate = pair.currentDate;
+  if (!pair.current || !currentDate || pair.current.fetchStatus === "failed") return pair;
+
+  const beforePeriod = dates.filter((date) => date < periodStart(period)).reverse();
+  const earlierInPeriod = inPeriod.filter((date) => date < currentDate);
+  for (const date of [...beforePeriod, ...earlierInPeriod]) {
+    const snapshot = await readSnapshot(root, date, siteId);
+    if (snapshot && snapshot.fetchStatus !== "failed") {
+      pair.baseline = snapshot;
+      pair.baselineDate = date;
+      break;
+    }
+  }
+
+  return pair;
 }
