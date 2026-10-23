@@ -1,8 +1,5 @@
 # WordPress Maintenance Skill
 
-Read-only maintenance for the agency's WordPress client sites. It collects core, **all** plugins and **all** themes from authenticated REST endpoints, stores timestamped snapshots, joins them with a human-verified license register and a human-confirmed work log, and produces three reports: R1 consolidated (PDF + CSV), R2 internal per site, and R3 branded client report in Slovenian or English. A person starts every run; it never changes a client site.
-
-**Status:** Weeks 1–4 of 5 are complete (see [Progress](#progress)).
 
 ## Quick start
 
