@@ -32,8 +32,6 @@ yarn monthly                                        # collect + report for this 
 
 Exit codes: `0` done, `1` configuration or usage error, `2` a site failed or a report could not be written (the other sites are still processed).
 
-In Claude Code, type `/wordpress-maintenance run` (or `check`, `report 2026-10`, `demo`). See [docs/07](docs/07-monthly-workflow.md#with-claude-code).
-
 Each client site needs the **Agency Maintenance Status** plugin and a `maintenance-auditor` account: [docs/05 onboarding](docs/05-status-endpoint.md#onboarding-a-client-site-checklist).
 
 ## Where everything lives
@@ -66,30 +64,3 @@ Each client site needs the **Agency Maintenance Status** plugin and a `maintenan
 | `agency.json` | agency branding (not secret) | repository or agency machine |
 | `clients.json`, `.env`, `licenses.csv`, `maintenance_log.csv` | real sites, secrets, client data | agency machine only, **git-ignored** |
 | `snapshots/`, `reports/`, `sample-output/` | generated data | agency machine only, **git-ignored** |
-
-## Documentation
-
-1. [Field specification](docs/01-field-specification.md): every field, its source, the yes/no/unknown rules, `agency.json`
-2. [Reports R1, R2, R3](docs/02-sample-reports.md): contents, CSV columns, file names, which snapshots are used, preview images
-3. [Test environment](docs/03-test-environment.md): local XAMPP instance, setup, verification results, troubleshooting
-4. [REST permissions and update data](docs/04-rest-permissions-and-update-data.md): investigation findings
-5. [Status endpoint](docs/05-status-endpoint.md): API contract, security model, client onboarding
-6. [License register and maintenance log](docs/06-license-register-and-maintenance-log.md): formats, rules, Excel tips
-7. [Monthly workflow](docs/07-monthly-workflow.md): runbook, Claude skill, adding a site, credentials, re-running
-
-## Security in one paragraph
-
-GET requests only; the client has no write methods, and the tests assert that only GET is sent. Passwords live only in `.env`, read by the script; they never appear in `clients.json`, snapshots, logs, reports or Claude's context, and the skill is told never to open `.env`. HTTPS is required except for an explicitly flagged local test site. TLS is always verified, and redirects are never followed with credentials. On the WordPress side the auditor account can't change anything: every non-GET request returns 403, verified against a real WordPress. One failing site never stops the batch. PDFs are generated with network and file access locked to the bundled fonts. CSV cells that could run as Excel formulas are neutralised. The client report contains only confirmed work, with no internal notes, error details or other clients; this is enforced by tests.
-
-## Progress
-
-| Week | Deliverable | Status |
-|---|---|---|
-| 1 | Confirm fields and sample reports | ✅ [01](docs/01-field-specification.md), [02](docs/02-sample-reports.md), [samples/](samples/) |
-| 1 | Set up test WordPress instance | ✅ [03](docs/03-test-environment.md), `tools/setup-local-wordpress.php` |
-| 1 | Investigate REST permissions and update transients | ✅ [04](docs/04-rest-permissions-and-update-data.md) |
-| 2 | Build and secure minimal status endpoint | ✅ `wordpress-plugin/`, [05](docs/05-status-endpoint.md), guards verified live |
-| 2 | Authenticated collector for core, all plugins, all themes | ✅ `src/collect.ts`, `src/wordpress-client.ts`, live run on the local instance |
-| 3 | Normalised snapshots, site config, license register, diffing, R1 + R2 | ✅ `src/snapshot.ts`, `src/agency.ts`, `src/licenses.ts`, `src/diff.ts`, `src/reports/`, [06](docs/06-license-register-and-maintenance-log.md) |
-| 4 | Confirmed maintenance log, branded R3 PDF, SKILL.md, command line | ✅ `src/maintenance-log.ts`, `src/reports/r3.ts`, `.claude/skills/…/SKILL.md`, `src/index.ts`, [07](docs/07-monthly-workflow.md) |
-| 5 | Test on 2–3 authorised sites, error cases, handover, demo | next |
