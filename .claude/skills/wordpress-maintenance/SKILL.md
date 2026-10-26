@@ -61,6 +61,8 @@ Then reply with:
    | `404 rest_no_route ... status` | Agency Maintenance Status plugin missing (result is partial) | install it on the site, see `docs/05-status-endpoint.md` |
    | `timeout`, `network`, `tls` | site down, wrong URL, or bad certificate | check the site in a browser; never disable TLS checks |
    | `redirected to ...` | the URL in `clients.json` is outdated | update `url` in `clients.json` |
+   | `PROBLEM ... could not be replaced` | a report file is open in Excel or a PDF viewer | the user closes it, then run `yarn wpm report` again |
+   | `... is not saved as UTF-8` | `licenses.csv` or `maintenance_log.csv` was saved in another format | the user saves it again in Excel as CSV UTF-8 |
 
 3. **Waiting for a person:** unconfirmed log entries (they are not in the client reports until confirmed), expired or missing licenses, and every `NOTE` line from the output.
 4. **Where the files are:** the `reports/<YYYY-MM>/` folder, and that every R3 (client report) must be reviewed by a person before it is sent. R1 and R2 are internal and must never be sent to clients.

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Agency Maintenance Status
  * Description:       Read-only REST endpoint (GET /wp-json/agency-maintenance/v1/status) with the WordPress core version and WordPress' cached update data, for the agency maintenance collector. Adds a least-privilege "Maintenance Auditor" role that cannot change anything.
- * Version:           1.0.1
+ * Version:           1.0.2
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * License:           GPL-2.0-or-later
@@ -22,7 +22,7 @@ use WP_User;
 
 defined( 'ABSPATH' ) || exit;
 
-const VERSION        = '1.0.1';
+const VERSION        = '1.0.2';
 const SCHEMA_VERSION = 1;
 const REST_NAMESPACE = 'agency-maintenance/v1';
 const CAPABILITY     = 'view_agency_maintenance_status';
@@ -67,8 +67,7 @@ function is_auditor( $user = null ) {
 	if ( ! $user instanceof WP_User ) {
 		$user = wp_get_current_user();
 	}
-	$roles = array_values( (array) $user->roles );
-	return 1 === count( $roles ) && ROLE === $roles[0];
+	return in_array( ROLE, (array) $user->roles, true );
 }
 
 function request_method() {
@@ -89,9 +88,6 @@ function is_read_only_rest_request() {
 }
 
 function filter_auditor_caps( $allcaps, $caps, $args, $user ) {
-	if ( empty( $allcaps[ CAPABILITY ] ) ) {
-		return $allcaps;
-	}
 	if ( ! is_auditor( $user ) ) {
 		return $allcaps;
 	}
@@ -122,6 +118,20 @@ function block_auditor_writes( $result, $server, $request ) {
 	);
 }
 add_filter( 'rest_pre_dispatch', __NAMESPACE__ . '\block_auditor_writes', 10, 3 );
+
+function block_auditor_xmlrpc( $user ) {
+	if ( ! defined( 'XMLRPC_REQUEST' ) || ! XMLRPC_REQUEST ) {
+		return $user;
+	}
+	if ( ! $user instanceof WP_User || ! is_auditor( $user ) ) {
+		return $user;
+	}
+	return new WP_Error(
+		'agency_maintenance_read_only',
+		__( 'The maintenance auditor account can only be used with the REST API.', 'agency-maintenance-status' )
+	);
+}
+add_filter( 'authenticate', __NAMESPACE__ . '\block_auditor_xmlrpc', 100 );
 
 function register_routes() {
 	register_rest_route(

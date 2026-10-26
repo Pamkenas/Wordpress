@@ -72,7 +72,7 @@ Re-running the setup script is safe: it updates the plugin files, resets the use
 
 ## Verified on 2026-10-26 (Week 5)
 
-Error cases, the read-only checks and a report with a test register and log: see [11 · Test report](11-test-report.md), sections 3 and 4.
+Error cases, the read-only checks and a report with a test register and log: see [11 · Test report](11-test-report.md), sections 3 and 4. The final review on the same day (status plugin 1.0.2) is in section 8.
 
 ## Troubleshooting
 
@@ -83,4 +83,7 @@ Error cases, the read-only checks and a report with a test register and log: see
 | `HTTP 404 ... REST API not reachable at /wp-json/` | plain permalinks or a wrong URL; enable pretty permalinks (Settings → Permalinks → Save) |
 | `HTTP 404 rest_no_route ... status` | status plugin not installed or not active. Result is `partial`, with every update state unknown |
 | `"url" must use https://` | add `"allowInsecureHttp": true` to the site entry, but only for a local test instance |
+| `"allowInsecureHttp" only works for a test site on this computer` | every real site needs `https://`. The flag works only for `localhost`, `127.0.0.1` or a `*.local` / `*.test` name on this computer |
+| `PROBLEM … could not be replaced (EPERM); is it open in Excel or a PDF viewer?` | that report file is open in another program. Close it and run `yarn report` again. The other reports were written |
+| `… is not saved as UTF-8` | open the CSV in Excel and save it again with File → Save As → **CSV UTF-8** ([06](06-license-register-and-maintenance-log.md#editing-in-excel)) |
 | MySQL in XAMPP stops at once; `C:\xampp\mysql\data\mysql_error.log` says `Can't open and lock privilege tables: Incorrect file format 'roles_mapping'` | a system table was damaged by an unclean stop (computer shut down while MySQL ran). With MySQL stopped, copy the three `roles_mapping.*` files somewhere safe, copy the same three from `C:\xampp\mysql\backup\mysql\` into `C:\xampp\mysql\data\mysql\`, then start MySQL. The table is empty in a default XAMPP, so nothing is lost. Always stop MySQL with the XAMPP Control Panel's **Stop** button before shutting down. (Fixed this way on 2026-10-23; the damaged copies are in `C:\xampp\mysql\roles_mapping-damaged-2026-10-23\`.) |

@@ -17,10 +17,11 @@ Not logged in → **401**. Logged in without the capability → **403** (`rest_a
 
 ### Decision: Maintenance Auditor role with read-only guards
 
-The status plugin adds the role `agency_maintenance_auditor` with `read`, `activate_plugins`, `switch_themes` and `view_agency_maintenance_status`. Two guards make it read-only:
+The status plugin adds the role `agency_maintenance_auditor` with `read`, `activate_plugins`, `switch_themes` and `view_agency_maintenance_status`. Three guards make it read-only. They apply to every account that has this role, even if it has another role too (some plugins, such as bbPress, add one automatically):
 
 1. **`user_has_cap` filter**: `activate_plugins` and `switch_themes` exist only during a REST request whose method is GET/HEAD without a method override. In wp-admin, XML-RPC and every REST write they are `false`.
 2. **`rest_pre_dispatch` filter**: every REST request from an auditor with an effective method other than GET/HEAD is rejected with 403 `agency_maintenance_read_only`. This covers method overrides, because WordPress applies `?_method=` and `X-HTTP-Method-Override` to **any** verb (`class-wp-rest-server.php:390-393`). It also covers each sub-request of `/batch/v1` (`rest_pre_dispatch` runs per sub-request, `:1866`).
+3. **`authenticate` filter**: XML-RPC logins with the auditor account are refused. Application passwords also work for XML-RPC (§5), so without this guard the password could post comments or edit the account's profile there.
 
 **Fail-safe:** deactivating the plugin removes the role, so the account has no capabilities left. Reactivating restores it. All of this was verified on the local instance (see [03](03-test-environment.md#verified-on-2026-10-21)).
 
@@ -69,7 +70,7 @@ Side effect to know: `get_site_transient()` runs `site_transient_update_plugins`
 ## 5. Authentication facts
 
 - Application passwords (WordPress ≥ 5.6) require HTTPS unless `WP_ENVIRONMENT_TYPE` is `local` (`user.php:5155-5157`).
-- Application passwords authenticate REST and XML-RPC requests, never a wp-admin login.
+- Application passwords authenticate REST and XML-RPC requests, never a wp-admin login. The status plugin refuses XML-RPC logins for the auditor account.
 - Spaces in the password are optional; the collector strips them.
 - `401 rest_not_logged_in` despite credentials means the web server dropped the `Authorization` header (common with PHP-CGI). Fix in [03](03-test-environment.md#troubleshooting).
 - Security plugins (Wordfence, iThemes/Solid, ...) can block `/wp-json/` or application passwords; the collector reports an HTML response as `invalid-response`.
@@ -78,5 +79,5 @@ Side effect to know: `get_site_transient()` runs `site_transient_update_plugins`
 
 | Account | Needs | Can change anything? |
 |---|---|---|
-| `maintenance-auditor`, only role *Maintenance Auditor (read-only)* | status plugin active + application password | **No.** Verified: activate, deactivate, delete, method override and batch all return 403 |
+| `maintenance-auditor` with the role *Maintenance Auditor (read-only)* | status plugin active + application password | **No.** Verified: activate, deactivate, delete, method override and batch all return 403, XML-RPC logins are refused, and a second role doesn't change that |
 | Without the status plugin | Administrator (for `activate_plugins` + `switch_themes`) | Yes. **Not acceptable**; the site gets the status plugin or is not onboarded |

@@ -28,6 +28,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isLocalHost(hostname: string): boolean {
+  if (hostname === "localhost" || hostname === "[::1]") return true;
+  if (/^127\.\d+\.\d+\.\d+$/.test(hostname)) return true;
+  return /\.(localhost|local|test)$/.test(hostname);
+}
+
 function checkUrl(value: unknown, allowInsecureHttp: boolean, problems: string[], label: string): string | null {
   if (typeof value !== "string" || value.trim() === "") {
     problems.push(`${label}: "url" is required`);
@@ -47,6 +53,10 @@ function checkUrl(value: unknown, allowInsecureHttp: boolean, problems: string[]
 
   if (url.protocol === "http:" && !allowInsecureHttp) {
     problems.push(`${label}: "url" must use https:// (set "allowInsecureHttp": true only for a local test instance)`);
+  } else if (url.protocol === "http:" && !isLocalHost(url.hostname)) {
+    problems.push(
+      `${label}: "allowInsecureHttp" only works for a test site on this computer (localhost, *.local, *.test); use https://`,
+    );
   } else if (url.protocol !== "https:" && url.protocol !== "http:") {
     problems.push(`${label}: "url" must use https://`);
   }

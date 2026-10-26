@@ -48,6 +48,15 @@ test("http:// is refused unless allowInsecureHttp is set", () => {
   assert.equal(parseSites([{ ...valid, url: "http://localhost/wordpress", allowInsecureHttp: true }]).length, 1);
 });
 
+test("allowInsecureHttp only works for a test site on this computer", () => {
+  for (const url of ["http://localhost/wordpress", "http://127.0.0.1:8080", "http://[::1]/wp", "http://shop.test"]) {
+    assert.equal(parseSites([{ ...valid, url, allowInsecureHttp: true }]).length, 1, url);
+  }
+  for (const url of ["http://www.example.com", "http://127.0.0.1.example.com", "http://192.168.1.20"]) {
+    assert.match(problems([{ ...valid, url, allowInsecureHttp: true }])[0] ?? "", /only works for a test site/, url);
+  }
+});
+
 test("site ids must be safe file names and unique", () => {
   assert.match(problems([{ ...valid, siteId: "../../etc" }])[0] ?? "", /siteId/);
   assert.match(problems([valid, valid]).join(), /duplicate/);

@@ -51,11 +51,20 @@ export interface PreparedReports {
 }
 
 const OWN_FILE = /^(r1|r2|r3)-.+\.(pdf|csv)$/;
+const LOCKED_CODES = ["EBUSY", "EPERM", "EACCES"];
 
-async function leftoverFiles(dir: string, written: string[]): Promise<string[]> {
-  const writtenNames = written.map((file) => basename(file));
+async function leftoverFiles(dir: string, planned: string[]): Promise<string[]> {
+  const plannedNames = planned.map((file) => basename(file));
   const existing = await readdir(dir);
-  return existing.filter((name) => OWN_FILE.test(name) && !writtenNames.includes(name));
+  return existing.filter((name) => OWN_FILE.test(name) && !plannedNames.includes(name));
+}
+
+function writeProblem(file: string, error: unknown): string {
+  const code = (error as NodeJS.ErrnoException).code ?? "";
+  if (LOCKED_CODES.includes(code)) {
+    return `${basename(file)} could not be replaced (${code}); is it open in Excel or a PDF viewer? Close it and run the report again`;
+  }
+  return `${basename(file)} could not be written: ${errorMessage(error)}`;
 }
 
 function choosePeriod(periodOption: string | undefined, dates: string[], snapshotsPath: string): string {
@@ -113,32 +122,37 @@ export async function generateReports(
   const dir = join(paths.reports, period);
   await mkdir(dir, { recursive: true });
   const files: string[] = [];
+  const planned: string[] = [];
   const logo = agency.logo ? await imageDataUrl(agency.logo) : null;
 
-  const csvFile = join(dir, `r1-inventory-${period}.csv`);
-  await writeFileAtomic(csvFile, buildR1Csv(reports, agency));
-  files.push(csvFile);
-
-  for (const report of reports) {
-    const siteId = report.site.siteId;
+  async function save(file: string, siteId: string, write: () => Promise<void>): Promise<void> {
+    planned.push(file);
     try {
-      const r2File = join(dir, `r2-internal-${siteId}-${period}.pdf`);
-      await writePdf(r2File, buildR2Pdf(report, agency, options.generatedAt));
-      files.push(r2File);
-
-      const r3File = join(dir, `r3-client-${siteId}-${period}.pdf`);
-      await writePdf(r3File, buildR3Pdf(report, agency, logo));
-      files.push(r3File);
+      await write();
+      files.push(file);
     } catch (error) {
-      problems.push({ siteId, message: `PDF could not be written: ${errorMessage(error)}` });
+      problems.push({ siteId, message: writeProblem(file, error) });
     }
   }
 
-  const r1File = join(dir, `r1-consolidated-${period}.pdf`);
-  await writePdf(r1File, buildR1Pdf(period, reports, agency, options.generatedAt, problems));
-  files.push(r1File);
+  const csvFile = join(dir, `r1-inventory-${period}.csv`);
+  await save(csvFile, "all sites", () => writeFileAtomic(csvFile, buildR1Csv(reports, agency)));
 
-  for (const name of await leftoverFiles(dir, files)) {
+  for (const report of reports) {
+    const siteId = report.site.siteId;
+    const r2File = join(dir, `r2-internal-${siteId}-${period}.pdf`);
+    await save(r2File, siteId, () => writePdf(r2File, buildR2Pdf(report, agency, options.generatedAt)));
+
+    const r3File = join(dir, `r3-client-${siteId}-${period}.pdf`);
+    await save(r3File, siteId, () => writePdf(r3File, buildR3Pdf(report, agency, logo)));
+  }
+
+  const r1File = join(dir, `r1-consolidated-${period}.pdf`);
+  await save(r1File, "all sites", () =>
+    writePdf(r1File, buildR1Pdf(period, reports, agency, options.generatedAt, problems)),
+  );
+
+  for (const name of await leftoverFiles(dir, planned)) {
     warnings.push(`${join(dir, name)} is from an earlier run and was not regenerated (site removed?); do not send it`);
   }
 

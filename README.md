@@ -10,7 +10,7 @@ A tool for a web agency that maintains WordPress sites for its clients. Once a m
    - **R2**: one detailed PDF per site (internal)
    - **R3**: one branded PDF per site for the client, in Slovenian or English. Only work that a person confirmed appears in it.
 
-**Status:** Weeks 1–5 are complete. All 94 automated tests and the live tests on the local WordPress pass ([test report](docs/11-test-report.md)). The test on 2–3 real client sites needs the agency's access, so its checklist is ready in [docs/11](docs/11-test-report.md), section 5.
+**Status:** Weeks 1–5 are complete. All 102 automated tests and the live tests on the local WordPress pass ([test report](docs/11-test-report.md)). The test on 2–3 real client sites needs the agency's access, so its checklist is ready in [docs/11](docs/11-test-report.md), section 5.
 
 ## Try it in 2 minutes (no real sites needed)
 
@@ -19,7 +19,7 @@ Needs Node.js 22.18 or newer (tested with 24.22) and Yarn 1.
 ```powershell
 yarn install
 yarn demo        # four demo sites, reports in sample-output\reports\2026-10\
-yarn verify      # typecheck + format check + 94 tests
+yarn verify      # typecheck + format check + 102 tests
 ```
 
 `yarn demo` ends with "exit code 2". That is expected: one demo site refuses access on purpose, to show that a failing site doesn't stop the others.
@@ -89,9 +89,9 @@ The agency's own files (`clients.json`, `.env`, `licenses.csv`, `maintenance_log
 
 ## Security in short
 
-- **Read-only:** the program sends only GET requests, and on each site the auditor account is refused (403) for every write. Both are tested.
+- **Read-only:** the program sends only GET requests. On each site the auditor account is refused (403) for every write and can't log in over XML-RPC, even if it gets a second role. All of this is tested.
 - **Passwords** live only in `.env`. They never appear in `clients.json`, snapshots, reports or Claude's context.
-- **HTTPS** with certificate checks. Plain `http://` is allowed only for a site marked as a local test. Redirects are never followed with the password.
+- **HTTPS** with certificate checks. Plain `http://` is allowed only for a local test site on this computer. Redirects are never followed with the password.
 - **One failing site** never stops the others.
 - **The client report** shows only work that a person confirmed: no internal notes, no error details, no other clients.
 

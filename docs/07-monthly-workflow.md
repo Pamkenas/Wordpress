@@ -90,6 +90,7 @@ Its rules: it never opens `.env`, never asks for passwords, never contacts sites
 | collected twice on the same day | fine: that day's files are replaced |
 | report built twice | fine: the month's files are replaced; out-of-date files are reported as a `NOTE` |
 | a step was interrupted | run it again; files are written to `.tmp` first and renamed, so a half-written file never replaces a good one |
+| a report file is open in Excel or a PDF viewer | the report says `PROBLEM … could not be replaced` and writes all the other files. Close the file and run `yarn report --period <YYYY-MM>` again |
 
 ## Demo (no real sites)
 

@@ -11,7 +11,7 @@ Both files are optional. Without `licenses.csv` every license is reported as `un
 
 ## Editing in Excel
 
-- Save as **CSV UTF-8**. Comma or semicolon separators both work; the delimiter is detected from the header row.
+- Save as **CSV UTF-8**. Comma or semicolon separators both work; the delimiter is detected from the header row. A file saved in another format stops the report with a message asking for CSV UTF-8, so names with č, š and ž are never garbled.
 - Dates may be `2026-10-07` or the Slovenian `7. 10. 2026` that Excel writes; times as `2026-10-07 15:10`.
 - Format version columns as **Text** before typing. Otherwise Excel turns `5.6` into a number or a date.
 - The header row must keep the column names below. Extra columns are ignored with a `NOTE`.

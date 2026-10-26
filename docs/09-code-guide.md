@@ -33,7 +33,7 @@ The program never changes a client site. It only reads (HTTP GET).
 | `src/agency.ts` | Reads `agency.json` (name, colour, logo, language). |
 | `src/csv.ts` | Reads and writes CSV files, including files saved by Excel. |
 | `src/dates.ts` | Reads and formats dates (`2026-10-07` and `7. 10. 2026`). |
-| `src/files.ts` | Writes a file safely (temp file first, then rename). |
+| `src/files.ts` | Writes a file safely (temp file first, then rename; the temp file is removed if the rename fails). |
 | `src/licenses.ts` | Reads `licenses.csv` and decides if a license is valid, expired, missing… |
 | `src/maintenance-log.ts` | Reads `maintenance_log.csv` and decides which work is confirmed. |
 | `src/report-model.ts` | Collects everything one site's reports need into one object (`buildSiteReport`). |
@@ -55,13 +55,15 @@ The program never changes a client site. It only reads (HTTP GET).
    - takes the site's password from the environment (`.env`). If it's missing, the site fails at once and nothing is sent;
    - asks for the **plugins** (`getPlugins()`). This answer is required: if it fails, the site is marked `failed` and nothing more is asked;
    - asks for the **themes** (`getThemes()`) and our **status endpoint** (`getStatus()`). If one of them fails, the site is `partial`;
-   - cleans up the answers (`normalizePlugins()`, `normalizeThemes()`, `normalizeCore()`).
+   - cleans up the answers (`normalizePlugins()`, `normalizeThemes()`, `normalizeCore()`). Names and versions go through `plainText()`, so `Header &amp; Footer` is saved as `Header & Footer`.
 5. **`wordpress-client.ts` → `WordPressClient`** does the actual HTTP work:
    - sends the username and application password (Basic auth);
    - gives up after 15 seconds;
    - retries a few times only for temporary problems (timeout, 429, 502–504);
    - never follows redirects;
-   - checks the answer's shape, so a firewall page can't crash the program.
+   - refuses answers larger than 5 MB (`readBody()`), so a broken or hostile site can't fill the memory;
+   - checks the answer's shape, so a firewall page can't crash the program;
+   - removes HTML, `&amp;`-style codes and terminal control characters from error messages (`plainText()`).
 6. **`snapshot.ts` → `writeSnapshots()`** saves one JSON file per site plus `_run.json` in `snapshots/YYYY-MM-DD/`.
 
 ### The update rule (`resolveUpdate()` in `collect.ts`)
@@ -83,6 +85,8 @@ WordPress keeps a list from its last update check. We answer **yes** (update ava
    - the PDFs with `buildR1Pdf()`, `buildR2Pdf()` and `buildR3Pdf()`, each written by `writePdf()`;
    - `_report.json`, a short summary for the Claude skill.
 
+   Every file goes through `save()`. If one file can't be written (for example because it's open in Excel), it becomes a `PROBLEM` line and the other files are still written.
+
 The report builders only *describe* a PDF (lists of texts and tables). `pdf.ts` turns that description into the real file. Because of this split, the tests can check what a report says without opening a PDF.
 
 **The R3 rules live in `r3.ts`.**
@@ -98,7 +102,10 @@ The report builders only *describe* a PDF (lists of texts and tables). `pdf.ts` 
 2. **Adds the role** "Maintenance Auditor (read-only)" when activated, and removes it when deactivated (the fail-safe).
 3. **Guards the auditor account**, because WordPress requires "manage plugins" rights just to *list* plugins:
    - `filter_auditor_caps()` gives those rights only while a read-only REST request is running;
-   - `block_auditor_writes()` refuses every REST request from the auditor that is not a read (403).
+   - `block_auditor_writes()` refuses every REST request from the auditor that is not a read (403);
+   - `block_auditor_xmlrpc()` refuses XML-RPC logins with the auditor account.
+
+   `is_auditor()` decides who is the auditor: every account that has the auditor role, even if it also has another role. So an extra role can never switch the guards off.
 
 ## The demo and the tests
 

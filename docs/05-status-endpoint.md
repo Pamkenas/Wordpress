@@ -1,6 +1,6 @@
 # 05 · Status endpoint and client-site onboarding (Week 2)
 
-Plugin: [wordpress-plugin/agency-maintenance-status/](../wordpress-plugin/agency-maintenance-status/), version 1.0.1 (single PHP file, no dependencies, PHP ≥ 7.4, WordPress ≥ 5.6, single-site installs).
+Plugin: [wordpress-plugin/agency-maintenance-status/](../wordpress-plugin/agency-maintenance-status/), version 1.0.2 (single PHP file, no dependencies, PHP ≥ 7.4, WordPress ≥ 5.6, single-site installs).
 
 The plugin is not on WordPress.org and declares `Update URI: false`, so WordPress never asks WordPress.org about it. That also stops an unrelated plugin with the same slug from ever being offered as an "update". The collector instead compares the version installed on each site with the version in this repository (`src/agency-plugin.ts`): an older copy is reported as an update, so the plugin never shows up as "unknown". To update a site, copy the folder again (or upload the new zip) and check that `yarn collect --site <id>` shows it as current.
 
@@ -23,7 +23,7 @@ Response headers: `Cache-Control: no-store, private`. Response body, with illust
 ```jsonc
 {
   "schemaVersion": 1,                 // the collector rejects other versions as invalid-response
-  "pluginVersion": "1.0.1",
+  "pluginVersion": "1.0.2",
   "generatedAt": "2026-10-21T07:29:15+00:00",
   "core": {
     "installed": "7.1.3",
@@ -52,9 +52,9 @@ The endpoint passes WordPress' cached facts through unchanged. The interpretatio
 |---|---|
 | Read-only by design | one route, `WP_REST_Server::READABLE` (GET/HEAD) only; reads transients, never triggers update checks; no write code in the plugin |
 | Capability check on every custom endpoint | `permission_callback` → `current_user_can( 'view_agency_maintenance_status' )` |
-| Least-privilege account | role *Maintenance Auditor (read-only)*: write-capable capabilities exist only during GET REST requests; all other auditor REST methods → 403 ([04 §1](04-rest-permissions-and-update-data.md#decision-maintenance-auditor-role-with-read-only-guards)) |
+| Least-privilege account | role *Maintenance Auditor (read-only)*: write-capable capabilities exist only during GET REST requests; all other auditor REST methods → 403, and XML-RPC logins are refused. This holds for every account with the role, even with a second role ([04 §1](04-rest-permissions-and-update-data.md#decision-maintenance-auditor-role-with-read-only-guards)) |
 | Fail-safe | deactivation removes the role (account left with zero capabilities); uninstall also removes the custom capability |
-| HTTPS | WordPress refuses application passwords over http on non-local sites; the collector refuses `http://` unless `allowInsecureHttp` is set for that (local) site |
+| HTTPS | WordPress refuses application passwords over http on non-local sites; the collector refuses `http://` unless `allowInsecureHttp` is set, and that flag works only for a test site on this computer (`localhost`, `*.local`, `*.test`) |
 | Minimal data | no PHP version, paths, users, options or licence keys in the response |
 
 ## Onboarding a client site (checklist)
@@ -64,7 +64,7 @@ Do this only for sites the agency is **explicitly authorised** to maintain.
 1. **Install the plugin.** Zip the folder `wordpress-plugin/agency-maintenance-status/` and upload it under Plugins → Add New → Upload, or copy the folder to `wp-content/plugins/agency-maintenance-status/` over SFTP. Then activate it.
 2. **Create the account.** Users → Add New:
    - Username `maintenance-auditor`, an agency-controlled mailbox
-   - Role **Maintenance Auditor (read-only)**, and no other role
+   - Role **Maintenance Auditor (read-only)**, and no other role (if a plugin such as bbPress adds one later, the account still stays read-only)
    - Password: generate and discard (the account never logs in interactively)
 3. **Create the application password.** Users → maintenance-auditor → *Application Passwords* → name `Agency maintenance collector` → Add. Copy it **once** into the agency machine's `.env`, as `WP_<SITE>_APP_PASSWORD=...`. Don't paste it into chat, tickets, email or Claude.
 4. **Register the site** in `clients.json` (non-secret):

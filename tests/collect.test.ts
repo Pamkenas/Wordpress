@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { describe, test } from "node:test";
 import { AGENCY_PLUGIN_ID, BUNDLED_PLUGIN_VERSION } from "../src/agency-plugin.ts";
 import { collectSite, collectSites, resolveUpdate } from "../src/collect.ts";
-import { SAMPLE_SITES, type FixtureSite } from "../src/sample/fixtures.ts";
+import { buildMockSite, SAMPLE_SITES, type FixtureSite } from "../src/sample/fixtures.ts";
 import type { PluginInventory } from "../src/types.ts";
 import { FAST, sampleFixture, withMockSites } from "./helpers.ts";
 
@@ -78,6 +78,20 @@ describe("acceptance: inventory completeness", () => {
       assert.equal(woo.updateAvailable, "yes");
       assert.equal(woo.offeredVersion, "10.2.2");
       assert.equal(inv.core.availableVersion, "7.1.3");
+    });
+  });
+
+  test("names from WordPress are stored as plain text, so reports show & instead of &amp;", async () => {
+    const fixture: FixtureSite = {
+      ...sampleFixture("demo-bakery"),
+      siteId: "entities",
+      plugins: [{ id: "header-footer/header-footer.php", name: "Header &amp; Footer &lt;Pro&gt;", version: "2.1" }],
+      themes: [{ id: "shop", name: "Shop &#8211; Theme", version: "1.0", active: true }],
+    };
+    await withMockSites([fixture], async ([site]) => {
+      const inv = await collectSite(site!, FAST);
+      assert.equal(findPlugin(inv.plugins, "header-footer/header-footer.php").name, "Header & Footer <Pro>");
+      assert.equal(inv.themes[0]?.name, `Shop ${String.fromCodePoint(8211)} Theme`);
     });
   });
 
@@ -169,6 +183,24 @@ describe("acceptance: failures are isolated", () => {
       assert.equal(inv.core.installedVersion, null);
       assert.ok([inv.core, ...inv.plugins, ...inv.themes].every((i) => i.updateAvailable === "unknown"));
       assert.match(inv.error ?? "", /Agency Maintenance Status plugin/);
+    });
+  });
+
+  test("a broken update-check time from a site does not fail the whole site", async () => {
+    const fixture = sampleFixture("demo-bakery");
+    const status = buildMockSite(fixture, "auditor", "unused", new Date()).status;
+    assert.ok(status);
+    status.plugins.lastChecked = 1e20;
+    const broken: FixtureSite = {
+      ...fixture,
+      siteId: "bad-time",
+      failures: { status: { status: 200, body: JSON.stringify(status), contentType: "application/json" } },
+    };
+    await withMockSites([broken], async ([site]) => {
+      const inv = await collectSite(site!, FAST);
+      assert.equal(inv.fetchStatus, "success");
+      assert.equal(inv.plugins.length, 15);
+      assert.equal(inv.plugins[0]?.lastCheck, null);
     });
   });
 

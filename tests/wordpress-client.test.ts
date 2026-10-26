@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { FixtureSite } from "../src/sample/fixtures.ts";
 import type { MockFailures } from "../src/sample/mock-wordpress.ts";
-import { WordPressClient } from "../src/wordpress-client.ts";
+import { plainText, WordPressClient } from "../src/wordpress-client.ts";
 import { expectApiError, FAST, sampleFixture, TEST_PASSWORD, withMockSites } from "./helpers.ts";
 
 function withFailure(failures?: MockFailures): FixtureSite {
@@ -78,6 +78,35 @@ test("403 is not retried", async () => {
     assert.equal(error.kind, "forbidden");
     assert.equal(mock.requests.length, 1);
   });
+});
+
+test("a response larger than 5 MB is refused instead of filling the memory", async () => {
+  const huge = `[${"0,".repeat(3 * 1024 * 1024)}0]`;
+  const site = withFailure({ plugins: { status: 200, body: huge, contentType: "application/json" } });
+  await withMockSites([site], async ([config]) => {
+    const error = await expectApiError(new WordPressClient(config!.url, "auditor", TEST_PASSWORD, FAST).getPlugins());
+    assert.equal(error.kind, "invalid-response");
+    assert.match(error.message, /larger than 5 MB/);
+  });
+});
+
+test("error messages from a site lose HTML, entities and terminal control codes", async () => {
+  const escape = String.fromCharCode(27);
+  const message = `<b>Blocked</b> by &quot;Firewall&quot; &amp; more${escape}[2J`;
+  const body = JSON.stringify({ code: "blocked", message });
+  const site = withFailure({ plugins: { status: 500, body, contentType: "application/json" } });
+  await withMockSites([site], async ([config]) => {
+    const error = await expectApiError(new WordPressClient(config!.url, "auditor", TEST_PASSWORD, FAST).getPlugins());
+    assert.match(error.message, /^HTTP 500 blocked: Blocked by "Firewall" & more \[2J/);
+    assert.ok(!error.message.includes(escape));
+  });
+});
+
+test("plainText turns WordPress text into plain text and leaves unknown entities alone", () => {
+  const dash = String.fromCodePoint(8211);
+  assert.equal(plainText("Header &amp; Footer &lt;Pro&gt;"), "Header & Footer <Pro>");
+  assert.equal(plainText("Smush &#8211; <em>Lazy</em> &#x41;"), `Smush ${dash} Lazy A`);
+  assert.equal(plainText("&bogus; &constructor; &#99999999;"), "&bogus; &constructor; &#99999999;");
 });
 
 test("an unreachable host is a network error", async () => {

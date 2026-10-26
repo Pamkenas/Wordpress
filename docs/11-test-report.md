@@ -1,12 +1,13 @@
 # 11 · Test report (Week 5)
 
-Tests run on 26 October 2026 on the development computer: Windows 11 Pro, Node 24.22, XAMPP (PHP 8.2.12) with WordPress 7.1.3.
+Tests run on 26 October 2026 on the development computer: Windows 11 Pro, Node 24.22, XAMPP (PHP 8.2.12) with WordPress 7.1.3. A final review on the same day found seven problems. All of them are fixed and tested (section 8).
 
 ## Summary
 
 | Area | Result |
 |---|---|
-| Automated tests (`yarn verify`) | **94 of 94 pass**, plus the typecheck and the format check |
+| Automated tests (`yarn verify`) | **102 of 102 pass**, plus the typecheck and the format check |
+| Final review | **7 problems found and fixed**, 2 of them security problems in the status plugin (section 8) |
 | Acceptance tests from the specification (§8) | **all covered, all pass** (section 1) |
 | Error cases | **pass**: automated (section 2) and live (section 3) |
 | Live tests on the local WordPress | **pass** (section 3) |
@@ -45,21 +46,28 @@ The rule: if the plugin list can't be read, the site is `failed` and nothing mor
 | password variable missing from `.env` | `failed` without sending any request | `collect.test.ts` |
 | a site with 200 plugins | all 200 listed | `negative.test.ts` |
 | plugin names like `constructor` or `toString` | can't trick the update check | `negative.test.ts` |
+| plugin and theme names with `&amp;`, `&lt;` or `&#8211;` | saved as plain text (`&`, `<`, `–`) | `collect.test.ts`, `wordpress-client.test.ts` |
+| an answer larger than 5 MB | refused ("larger than 5 MB"), no crash | `wordpress-client.test.ts` |
+| HTML, `&amp;` codes or terminal control characters in a site's error message | removed before the message is shown or saved | `wordpress-client.test.ts` |
+| a broken update-check time from the site | that time becomes unknown; the site is still collected | `collect.test.ts` |
 | password written into `clients.json` | refused, with a pointer to `.env` | `config.test.ts` |
 | `http://` without the local-test flag | refused | `config.test.ts` |
+| `http://` with the local-test flag on a site that isn't on this computer | refused | `config.test.ts` |
 | unsafe or duplicate site ids; URLs with a password, query or fragment | refused | `config.test.ts` |
 | wrong values in `licenses.csv` (unknown status, bad date, duplicate row) or `maintenance_log.csv` (unknown action, bad date, half-filled confirmation, confirmation before the work) | rejected with the reason | `register.test.ts` |
 | `yarn report` with a broken `licenses.csv` or `maintenance_log.csv` | stops with exit code 1: "… is invalid", "row 2: …" | `negative.test.ts` |
 | CSV saved by Slovenian Excel (`;`, dates like `7. 10. 2026`) | read correctly | `csv-dates.test.ts`, `negative.test.ts` |
+| CSV not saved as UTF-8 (so č, š and ž can't be read) | stops with a hint to save it as CSV UTF-8 | `negative.test.ts` |
 | missing `clients.json` or `agency.json` | stops and says which template to copy | `negative.test.ts` |
 | corrupt snapshot file | only that site has a problem; all other reports are written | `negative.test.ts` |
+| a report file that can't be replaced (for example open in Excel) | a `PROBLEM` line and exit code 2; every other report is written and no `.tmp` file is left | `negative.test.ts` |
 | no snapshot in the month | every site reported as "not collected" | `reports.test.ts` |
 | certificate checks switched off (`NODE_TLS_REJECT_UNAUTHORIZED=0`) | the program refuses to run | `snapshot.test.ts` |
 | unknown command or bad `--period` | usage help, exit code 1 | `snapshot.test.ts` |
 
 ## 3. Live tests on the local WordPress
 
-WordPress 7.1.3 on XAMPP, account `maintenance-auditor`, status plugin 1.0.1. All runs used the final code.
+WordPress 7.1.3 on XAMPP, account `maintenance-auditor`. L1–L10 ran in the morning with status plugin 1.0.1. L11–L15 ran after the final review (section 8), with status plugin 1.0.2 and the final code.
 
 | # | Test | Result |
 |---|---|---|
@@ -73,6 +81,11 @@ WordPress 7.1.3 on XAMPP, account `maintenance-auditor`, status plugin 1.0.1. Al
 | L8 | status plugin activated again | `OK` again |
 | L9 | `yarn monthly` | `OK`: 7 plugins, 3 themes, 0 updates, 0 unknown. October reports written (R1 PDF + CSV, R2, R3), exit code 0 |
 | L10 | `yarn report` with a test register and a test work log | see below |
+| L11 | L2–L6 again, with the final code | the same results as L2–L6 |
+| L12 | `allowInsecureHttp` on a site that isn't on this computer (`http://www.example.com`) | refused before any request is sent: "only works for a test site on this computer", exit code 1 |
+| L13 | status plugin 1.0.1 on the site, 1.0.2 in the repository | `collect --details` shows `UPDATE -> 1.0.2` for the status plugin. After copying 1.0.2 to the site: 0 updates |
+| L14 | `yarn monthly` | `OK`: 7 plugins, 3 themes, 0 updates, 0 unknown. 4 files written, exit code 0 |
+| L15 | `yarn report --sample` while the R1 CSV is held open the way Excel holds it | exit code 2 and `PROBLEM all sites: r1-inventory-2026-10.csv could not be replaced (EPERM); is it open in Excel or a PDF viewer? …`. The other 9 files were written and no `.tmp` file was left. Before the fix the report stopped with exit code 1, wrote no R2 or R3 at all and left a `.tmp` file |
 
 L2, L3 and L4 ran together as one batch of three sites, and the batch finished all three. L2–L6 ran in a scratch folder with dummy passwords, so the real `snapshots/` folder only holds good runs.
 
@@ -90,7 +103,7 @@ L2, L3 and L4 ran together as one batch of three sites, and the batch finished a
 
 ## 4. Security checks
 
-Live on the local WordPress, with the auditor's real application password. The probe script printed only the status codes.
+Live on the local WordPress, with the auditor's real application password. The probe scripts printed only status codes and error codes. The REST checks were run again after the final review, with status plugin 1.0.2, and gave the same results.
 
 | Request | Expected | Result |
 |---|---|---|
@@ -106,12 +119,16 @@ Live on the local WordPress, with the auditor's real application password. The p
 | auditor GET settings | refused | 403 `rest_forbidden` |
 | auditor GET user details (`context=edit`) | refused | 403 `rest_forbidden_context` |
 | Hello Dolly before and after all attempts | unchanged | inactive both times |
+| auditor XML-RPC login (`wp.getProfile`) | refused | fault 403 "Incorrect username or password." (with 1.0.1 the login worked) |
+| auditor XML-RPC `wp.newComment` on a post that doesn't exist | refused at the login | fault 403 (with 1.0.1 the login worked and WordPress answered "Invalid post ID", so a comment on a real post would have been posted) |
+| auditor with a second role: `activate_plugins` and `switch_themes` outside a REST read (role added in memory only, nothing saved) | refused | `false` (with 1.0.1: `true`, so the account could have activated plugins) |
+| administrator, the same check | allowed | `true` |
 
 Other checks:
 
 - **Self-signed HTTPS certificate:** refused with "TLS error DEPTH_ZERO_SELF_SIGNED_CERT". This was a one-off check with a throwaway certificate.
-- **Simplified plugin code (23 October):** the old and the new plugin were run side by side on the same inputs and gave identical results. The inputs covered the status data and every guard, for every combination of role, HTTP method and override trick.
-- **No passwords in files:** snapshots, reports, the CSV and `_report.json` contain no password (automated tests). `yarn wpm check` prints only the name of each password variable and "(set)". A scan with the real passwords found none of them in the 105 files Git would commit, or in the real snapshots and reports.
+- **Simplified plugin code (23 October):** the old and the new plugin were run side by side on the same inputs and gave identical results. The inputs covered the status data and every guard, for every combination of role, HTTP method and override trick. Version 1.0.2 (26 October) changed `is_auditor()` and added the XML-RPC guard; the checks in the table above were repeated with it.
+- **No passwords in files:** snapshots, reports, the CSV and `_report.json` contain no password (automated tests). `yarn wpm check` prints only the name of each password variable and "(set)". After the final review, a scan with the real passwords found none of them in 101 files: every file Git would commit, plus the real snapshots and reports.
 - **Git:** `.env`, `clients.json`, `licenses.csv`, `maintenance_log.csv`, `snapshots/` and `reports/` are git-ignored, and none of them is in the repository.
 
 ## 5. Tests on 2–3 authorised client sites (to be done by the agency)
@@ -151,6 +168,7 @@ If something doesn't match, write down the plugin and what wp-admin shows, then 
 
 - **Real client sites:** see section 5.
 - **WordPress multisite:** not tested.
+- **Plugins that add roles (such as bbPress):** none is installed on the local site. The second-role case was checked in memory (section 4).
 - **Real premium plugins, and a real pending update from wordpress.org:** both are simulated with the built-in fake WordPress. The local site has no paid plugins and no outdated plugins.
 - **Other operating systems:** developed and tested on Windows 11 only.
 
@@ -162,3 +180,21 @@ If something doesn't match, write down the plugin and what wp-admin shows, then 
 | the demo | `yarn demo`, then open `sample-output\reports\2026-10\` |
 | the live run | start Apache and MySQL in XAMPP, then `yarn check-config` and `yarn monthly` |
 | set up the local test site from scratch | `C:\xampp\php\php.exe tools\setup-local-wordpress.php C:\xampp\htdocs\wordpress http://localhost/wordpress` (see [03](03-test-environment.md)) |
+
+## 8. Final review: problems found and fixed
+
+The whole code base and the status plugin were reviewed once more on 26 October. Every suspected problem was first reproduced, then fixed, then tested again. The demo reports before and after the fixes are identical, because the demo data has no special characters.
+
+| # | Problem | Why it mattered | Fix | Checked by |
+|---|---|---|---|---|
+| 1 | **Security.** The read-only guards applied only to an account whose *only* role was the auditor role. With a second role (bbPress, for example, adds a forum role automatically) the account kept the rights to activate plugins and switch themes, and its REST writes were no longer refused | a stolen auditor password could activate or deactivate plugins on a client site | `is_auditor()` now covers every account that has the auditor role (plugin 1.0.2) | section 4, second-role row |
+| 2 | **Security.** XML-RPC accepted the auditor's application password. The REST guards don't cover XML-RPC | a stolen password could post comments or edit the account's profile | XML-RPC logins with the auditor account are refused (plugin 1.0.2) | section 4, XML-RPC rows |
+| 3 | A report file that was open in Excel or a PDF viewer stopped the whole report with exit code 1 | no R2 or R3 was written for any site, and a `.tmp` file was left behind | each file is saved on its own. A file that can't be written becomes a `PROBLEM` line with a hint, and the temp file is removed | L15; `negative.test.ts` |
+| 4 | Plugin and theme names with `&` were shown as `&amp;` (WordPress sends HTML codes) | wrong names in every report, also in the client report | names and versions are saved as plain text | `collect.test.ts` |
+| 5 | `allowInsecureHttp` worked for any address | the password could be sent unencrypted over the internet by mistake | the flag works only for a test site on this computer | L12; `config.test.ts` |
+| 6 | A broken or hostile site could send a huge answer, terminal control characters in error messages, or a broken timestamp | the whole run could run out of memory and crash, the terminal could show misleading text, and a broken time marked the whole site as failed | answers over 5 MB are refused, control characters are removed, a broken time becomes unknown | `wordpress-client.test.ts`, `collect.test.ts` |
+| 7 | A CSV saved by Excel in the old "ANSI" format garbled č, š and ž without any warning | garbled names in R2, and in R3 when a work description has these letters | such a file stops the report with a hint to save it as CSV UTF-8 | `negative.test.ts` |
+
+Two small fixes as well: a negative `Retry-After` value from a site is ignored, and the `agency.json` message for `website` now says that both `https://` and `http://` work.
+
+**Sites that already run status plugin 1.0.1 need 1.0.2.** The collector lists older copies as an update (L13).

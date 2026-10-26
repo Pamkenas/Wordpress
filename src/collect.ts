@@ -12,6 +12,7 @@ import {
   type UpdateInfo,
 } from "./types.ts";
 import {
+  plainText,
   WordPressApiError,
   WordPressClient,
   type ClientOptions,
@@ -59,7 +60,14 @@ function toStatus(status: string): ActivationStatus {
 
 function toIso(timestamp: number | null): string | null {
   if (!timestamp) return null;
-  return new Date(timestamp * 1000).toISOString();
+  const date = new Date(timestamp * 1000);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function textOrNull(value: string | null): string | null {
+  if (value === null) return null;
+  return plainText(value) || null;
 }
 
 function unknownUpdate(note: string, source: string, lastCheck: string | null): UpdateInfo {
@@ -81,7 +89,7 @@ export function resolveUpdate(
   if (transient.checkedVersions[id] !== installedVersion) return unknownUpdate(NOTE.stale, sourceName, lastCheck);
 
   if (Object.hasOwn(transient.updates, id)) {
-    const offered = transient.updates[id] ?? null;
+    const offered = textOrNull(transient.updates[id] ?? null);
     return { updateAvailable: "yes", offeredVersion: offered, source: sourceName, lastCheck, updateNote: null };
   }
   if (transient.noUpdate.includes(id)) {
@@ -91,8 +99,10 @@ export function resolveUpdate(
 }
 
 function themeName(theme: RawTheme): string {
-  if (typeof theme.name === "string") return theme.name;
-  return theme.name.raw || theme.name.rendered || theme.stylesheet;
+  let name = "";
+  if (typeof theme.name === "string") name = theme.name;
+  else name = theme.name.raw || theme.name.rendered || "";
+  return plainText(name) || theme.stylesheet;
 }
 
 function pluginUpdate(identifier: string, installedVersion: string | null, status: RawStatus | null): UpdateInfo {
@@ -105,8 +115,8 @@ function extraPlugin(item: RawExtraPlugin, kind: "must-use" | "drop-in", note: s
   return {
     identifier: item.file,
     kind,
-    name: item.name || item.file,
-    installedVersion: item.version || null,
+    name: plainText(item.name) || item.file,
+    installedVersion: textOrNull(item.version),
     status: "active",
     ...unknownUpdate(note, "none", null),
   };
@@ -117,11 +127,11 @@ function normalizePlugins(raw: RawPlugin[], status: RawStatus | null): PluginInv
 
   for (const item of raw) {
     const identifier = `${item.plugin}.php`;
-    const installedVersion = item.version || null;
+    const installedVersion = textOrNull(item.version);
     plugins.push({
       identifier,
       kind: "plugin",
-      name: item.name || identifier,
+      name: plainText(item.name) || identifier,
       installedVersion,
       status: toStatus(item.status),
       ...pluginUpdate(identifier, installedVersion, status),
@@ -142,7 +152,7 @@ function normalizeThemes(raw: RawTheme[], status: RawStatus | null): ThemeInvent
   const transient = status ? status.themes : null;
 
   for (const item of raw) {
-    const installedVersion = item.version || null;
+    const installedVersion = textOrNull(item.version);
     themes.push({
       slug: item.stylesheet,
       name: themeName(item),
@@ -171,7 +181,7 @@ function normalizeCore(status: RawStatus | null): CoreInventory {
   const core = status.core;
   if (!core.checked) {
     return {
-      installedVersion: core.installed,
+      installedVersion: textOrNull(core.installed),
       availableVersion: null,
       updateAvailable: "unknown",
       source: "update_core transient",
@@ -181,8 +191,8 @@ function normalizeCore(status: RawStatus | null): CoreInventory {
   }
 
   return {
-    installedVersion: core.installed,
-    availableVersion: core.offered,
+    installedVersion: textOrNull(core.installed),
+    availableVersion: textOrNull(core.offered),
     updateAvailable: core.offered ? "yes" : "no",
     source: "update_core transient",
     lastCheck: toIso(core.lastChecked),

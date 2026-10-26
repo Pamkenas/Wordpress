@@ -21,7 +21,7 @@ Everything the agency needs to install, run, check and take over the WordPress M
 
    ```powershell
    yarn install
-   yarn verify     # expect: tests 94, pass 94, fail 0
+   yarn verify     # expect: tests 102, pass 102, fail 0
    yarn demo       # demo reports in sample-output\reports\2026-10\
    ```
 
@@ -50,6 +50,8 @@ Do this only for sites the agency is authorised to maintain. The full checklist 
 3. Create an application password for that user and put it in `.env` (and nowhere else).
 4. Add the site to `clients.json`, then run `yarn check-config` and `yarn collect --site <id> --details`.
 
+The current plugin version is **1.0.2**. If a site runs an older copy, `yarn collect` lists it as an update. To update, copy the new folder over the old one.
+
 ## 5. Every month
 
 `yarn check-config`, then `yarn monthly`. Next: read R1, fix problems, confirm the remaining work in the log, run `yarn report --period YYYY-MM` again, read every R3 and send it. The full runbook, including adding a site, managing passwords and re-running, is in [07](07-monthly-workflow.md).
@@ -58,17 +60,17 @@ In Claude Code you can type `/wordpress-maintenance run` instead (see [07](07-mo
 
 ## 6. Security notes
 
-- **Read-only.** The collector only sends GET requests (tested). On the site, the auditor account is refused with 403 for every write, including method tricks and batch requests (tested live).
+- **Read-only.** The collector only sends GET requests (tested). On the site, the auditor account is refused with 403 for every write, including method tricks and batch requests, and it can't log in over XML-RPC. This stays true if the account gets a second role (tested live).
 - **Fail-safe.** If the status plugin is deactivated, the auditor role disappears and the account can't read or change anything.
 - **Passwords** live only in `.env`. They never appear in `clients.json`, snapshots, reports, logs or Claude's context. The Claude skill is told never to open `.env`.
-- **HTTPS** is required (plain `http://` only for a site marked as a local test). Certificates are always checked: a self-signed certificate is refused. Redirects are never followed with the password.
+- **HTTPS** is required (plain `http://` only for a local test site on this computer). Certificates are always checked: a self-signed certificate is refused. Redirects are never followed with the password.
 - **Client report (R3)** contains only confirmed work: no internal notes, no error messages, no other clients and no "all fine" claim when something is unknown (tested).
 - **Client data** (`clients.json`, `licenses.csv`, `maintenance_log.csv`, `snapshots/`, `reports/`) stays on the agency computer and is git-ignored. R1 and R2 are internal and must never be sent to clients.
 - **Revoke access** to a site by deleting the application password in wp-admin, or by deactivating the plugin.
 
 ## 7. Tests
 
-- `yarn verify` runs the typecheck, the format check and **94 automated tests**. They use a built-in fake WordPress, so no real site and no password is needed.
+- `yarn verify` runs the typecheck, the format check and **102 automated tests**. They use a built-in fake WordPress, so no real site and no password is needed.
 - They include every acceptance test from the specification and the error cases. The list, the live results on the local WordPress, and the checklist for the real-site test are in [11](11-test-report.md).
 
 ## 8. Ten-minute demo

@@ -6,7 +6,7 @@ A script for showing the project in 10 minutes. The demo uses only fake data, so
 
 ```powershell
 yarn install
-yarn verify        # tests 94, pass 94
+yarn verify        # tests 102, pass 102
 yarn demo          # builds sample-output\reports\2026-10\
 ```
 
@@ -27,7 +27,7 @@ Open in advance:
 | 5:30–7:00 | `maintenance_log.sample.csv`, then `r3-client-demo-shop-2026-10.pdf` | "Only work that a person confirmed reaches the client. The Old Slider removal isn't confirmed yet, so it isn't in R3. Internal notes are never in R3. The report is in Slovenian; English is one setting in `agency.json`." |
 | 7:00–8:30 | Live (optional): `yarn check-config`, then `yarn monthly` against the local WordPress | "On a real WordPress the account we use is read-only. Every attempt to change something gets HTTP 403; we tested this. Deactivating our plugin removes all its access immediately." If XAMPP isn't running, show the security table in [11](11-test-report.md#4-security-checks) instead. |
 | 8:30–9:30 | Claude Code: `/wordpress-maintenance demo` | "The Claude Code skill runs the same commands and summarises the result. It never opens the password file and never changes the work log." |
-| 9:30–10:00 | `yarn verify` result | "94 automated tests, including every acceptance test from the specification." |
+| 9:30–10:00 | `yarn verify` result | "102 automated tests, including every acceptance test from the specification." |
 
 ## Questions people usually ask
 

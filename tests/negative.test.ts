@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { collectSite, collectSites, resolveUpdate } from "../src/collect.ts";
+import { ConfigError } from "../src/config.ts";
 import { loadLicenses } from "../src/licenses.ts";
 import { generateReports } from "../src/reports/generate.ts";
 import {
@@ -149,6 +150,23 @@ describe("negative cases: input files", () => {
     }
   });
 
+  test("a register that is not saved as UTF-8 stops with a hint instead of garbling names", async () => {
+    const dir = await tempDir();
+    try {
+      const file = join(dir, "licenses.csv");
+      const header = Buffer.from("site_id,plugin_identifier,license_status,owner\r\ndemo-shop,pro/pro.php,valid,");
+      const windows1250Name = Buffer.from([0x8a, 0x74, 0x65, 0x66, 0x61, 0x6e, 0x0d, 0x0a]);
+      await writeFile(file, Buffer.concat([header, windows1250Name]));
+
+      await assert.rejects(
+        loadLicenses(file, new Set(["demo-shop"])),
+        (error) => error instanceof ConfigError && /not saved as UTF-8.*CSV UTF-8/.test(error.message),
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("a broken license register or work log stops the report with a clear message", async () => {
     const cwd = await tempDir();
     try {
@@ -228,6 +246,27 @@ describe("negative cases: input files", () => {
       assert.ok(!files.includes("r3-client-demo-shop-2026-10.pdf"));
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a report file that cannot be replaced is a problem, and every other report is still written", async () => {
+    const cwd = await tempDir();
+    try {
+      runCli(["collect", "--sample"], {}, cwd);
+      const reportDir = join(cwd, "sample-output", "reports", "2026-10");
+      await mkdir(join(reportDir, "r1-inventory-2026-10.csv"), { recursive: true });
+
+      const result = runCli(["report", "--sample"], {}, cwd);
+      assert.equal(result.status, 2, result.stderr);
+      assert.match(result.stdout, /PROBLEM all sites: r1-inventory-2026-10\.csv could not be/);
+
+      const files = await readdir(reportDir);
+      assert.ok(files.includes("r1-consolidated-2026-10.pdf"));
+      assert.ok(files.includes("r2-internal-demo-shop-2026-10.pdf"));
+      assert.ok(files.includes("r3-client-demo-shop-2026-10.pdf"));
+      assert.ok(!files.some((name) => name.endsWith(".tmp")));
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
     }
   });
 });

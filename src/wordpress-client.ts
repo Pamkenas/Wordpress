@@ -60,7 +60,24 @@ interface FetchError {
 
 const RETRYABLE_KINDS: ErrorKind[] = ["timeout", "network", "rate-limited", "server"];
 const MAX_RETRY_AFTER_MS = 10000;
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const TLS_ERROR = /CERT|SSL|TLS|SELF_SIGNED|UNABLE_TO_VERIFY|ALTNAME/;
+
+const NAMED_ENTITIES = new Map<string, number>([
+  ["amp", 38],
+  ["lt", 60],
+  ["gt", 62],
+  ["quot", 34],
+  ["apos", 39],
+  ["nbsp", 160],
+  ["ndash", 8211],
+  ["mdash", 8212],
+  ["hellip", 8230],
+  ["lsquo", 8216],
+  ["rsquo", 8217],
+  ["ldquo", 8220],
+  ["rdquo", 8221],
+]);
 
 export class WordPressApiError extends Error {
   readonly kind: ErrorKind;
@@ -155,11 +172,29 @@ function isRawStatus(value: unknown): boolean {
   );
 }
 
-function clean(text: string, max = 200): string {
-  const plain = text
+function entityCode(name: string): number | undefined {
+  if (/^#x/i.test(name)) return parseInt(name.slice(2), 16);
+  if (name.startsWith("#")) return Number(name.slice(1));
+  return NAMED_ENTITIES.get(name);
+}
+
+function decodeEntity(entity: string, name: string): string {
+  const code = entityCode(name);
+  if (code === undefined || !Number.isInteger(code) || code < 1 || code > 0x10ffff) return entity;
+  return String.fromCodePoint(code);
+}
+
+export function plainText(text: string): string {
+  return text
     .replace(/<[^>]*>/g, " ")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, decodeEntity)
+    .replace(/\p{Cc}/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function clean(text: string, max = 200): string {
+  const plain = plainText(text);
   if (plain.length <= max) return plain;
   return `${plain.slice(0, max - 1)}…`;
 }
@@ -176,7 +211,7 @@ function kindForStatus(status: number): ErrorKind {
 function parseRetryAfter(header: string | null): number | null {
   if (!header) return null;
   const seconds = Number(header);
-  if (!Number.isFinite(seconds)) return null;
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
   return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
 }
 
@@ -196,7 +231,23 @@ function invalidShape(route: string): WordPressApiError {
   return new WordPressApiError("invalid-response", null, `unexpected response shape (GET ${route})`);
 }
 
+async function readBody(response: Response, route: string): Promise<string> {
+  if (!response.body) return "";
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      throw new WordPressApiError("invalid-response", response.status, `response is larger than 5 MB (GET ${route})`);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 function fetchFailure(error: unknown, route: string): WordPressApiError {
+  if (error instanceof WordPressApiError) return error;
   if (error instanceof DOMException && error.name === "TimeoutError") {
     return new WordPressApiError("timeout", null, `timed out (GET ${route})`);
   }
@@ -306,7 +357,7 @@ export class WordPressClient {
         redirect: "manual",
         signal: AbortSignal.timeout(this.options.timeoutMs),
       });
-      body = await response.text();
+      body = await readBody(response, route);
     } catch (error) {
       throw fetchFailure(error, route);
     }

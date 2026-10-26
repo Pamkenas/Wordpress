@@ -62,7 +62,7 @@ export function parseAgency(data: unknown, source: string, baseDir: string): Age
 
   const website = readText(entry, "website", problems);
   if (website && !/^https?:\/\/\S+$/.test(website)) {
-    problems.push('"website" must start with https://');
+    problems.push('"website" must start with https:// or http://');
   }
 
   const primaryColor = readText(entry, "primaryColor", problems) ?? DEFAULT_COLOR;

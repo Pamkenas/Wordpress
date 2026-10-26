@@ -3,6 +3,8 @@ import { ConfigError } from "./config.ts";
 
 export type CsvDelimiter = "," | ";";
 
+const UNREADABLE = String.fromCharCode(0xfffd);
+
 export function normalizeKeyword(value: string): string {
   return value
     .trim()
@@ -110,6 +112,12 @@ export async function readCsvFile(
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return null;
     throw new ConfigError(path, [`cannot read file (${code})`]);
+  }
+
+  if (text.includes(UNREADABLE)) {
+    throw new ConfigError(path, [
+      "the file is not saved as UTF-8, so some letters cannot be read; in Excel use File > Save As > CSV UTF-8",
+    ]);
   }
 
   text = text.replace(/^\uFEFF/, "");

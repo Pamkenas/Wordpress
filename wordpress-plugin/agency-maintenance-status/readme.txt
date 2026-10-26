@@ -2,7 +2,7 @@
 Requires at least: 5.6
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPL-2.0-or-later
 
 Read-only REST endpoint for the agency's maintenance inventory collector.
@@ -20,7 +20,8 @@ It reads cached data only and never triggers a remote update check. It has no wr
 It also adds the role "Maintenance Auditor (read-only)" for the collector's dedicated account.
 That role holds activate_plugins and switch_themes only during GET/HEAD REST requests, because
 core's plugin and theme listing endpoints require them; every other REST method from that
-account is rejected with HTTP 403, and the capabilities are withdrawn in wp-admin and XML-RPC.
+account is rejected with HTTP 403, and the capabilities are withdrawn in wp-admin. XML-RPC logins
+with this account are refused.
 Deactivating the plugin removes the role, so the account loses all access.
 
 == Installation ==
@@ -33,13 +34,18 @@ Deactivating the plugin removes the role, so the account loses all access.
 4. The site must use HTTPS (application passwords are disabled over http except when
    WP_ENVIRONMENT_TYPE is "local").
 
-Give the account no other role. A user who also has another role is not treated as an auditor.
+Give the account no other role. If it gets another role anyway (some plugins, such as bbPress,
+add one automatically), it still stays read-only.
 
 The plugin is not on WordPress.org and declares "Update URI: false", so WordPress never offers
 an update for it from WordPress.org (not even a different plugin with the same slug). The
 collector reports an update when the site runs an older version than the agency's repository.
 
 == Changelog ==
+
+= 1.0.2 =
+* An account with the auditor role stays read-only even when it has a second role.
+* XML-RPC logins with the auditor account are refused.
 
 = 1.0.1 =
 * Update URI: false, so WordPress.org can never offer an unrelated plugin as an update.
