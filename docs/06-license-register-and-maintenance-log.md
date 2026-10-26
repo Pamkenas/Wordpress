@@ -1,68 +1,67 @@
-# 06 · License register and maintenance log (Weeks 3–4)
+# 06 · License register and work log
 
-Two files that **people** maintain. The scripts only read them. Both live in the project folder next to `clients.json` and are git-ignored because they contain client data.
+Two files that **people** fill in. The tool only reads them.
 
-| File | Template | Purpose |
+| File | Copy from | What it is |
 |---|---|---|
-| `licenses.csv` | [licenses.example.csv](../licenses.example.csv) | human-verified license register |
-| `maintenance_log.csv` | [maintenance_log.example.csv](../maintenance_log.example.csv) | human-confirmed work, the only source of "work performed" in R3 |
+| `licenses.csv` | [licenses.example.csv](../licenses.example.csv) | which plugins have a valid license |
+| `maintenance_log.csv` | [maintenance_log.example.csv](../maintenance_log.example.csv) | the work that was done and checked |
 
-Both files are optional. Without `licenses.csv` every license is reported as `unknown`; without `maintenance_log.csv` no work is reported. `yarn check-config` shows what was found.
+Both are optional:
+
+- without `licenses.csv`, every license is `unknown`
+- without `maintenance_log.csv`, no work is shown
+
+They contain client data, so they are not saved in Git.
 
 ## Editing in Excel
 
-- Save as **CSV UTF-8**. Comma or semicolon separators both work; the delimiter is detected from the header row. A file saved in another format stops the report with a message asking for CSV UTF-8, so names with č, š and ž are never garbled.
-- Dates may be `2026-10-07` or the Slovenian `7. 10. 2026` that Excel writes; times as `2026-10-07 15:10`.
-- Format version columns as **Text** before typing. Otherwise Excel turns `5.6` into a number or a date.
-- The header row must keep the column names below. Extra columns are ignored with a `NOTE`.
-- A row with a problem stops the report with a message naming the row. Nothing is skipped silently, because the client report depends on this data.
+- Save as **CSV UTF-8**. Otherwise the report stops and asks you to do it, so č, š and ž are never garbled.
+- Commas or semicolons both work.
+- Dates can be `2026-10-07` or `7. 10. 2026`. Times: `2026-10-07 15:10`.
+- Set version columns to **Text** first. Otherwise Excel turns `5.6` into a number.
+- Keep the column names in the first row.
+- A wrong row stops the report and the message says which row.
 
 ## licenses.csv
 
-| Column | Required | Values |
+| Column | Needed | What to write |
 |---|---|---|
-| `site_id` | yes | a `siteId` from `clients.json` (rows for other sites are ignored with a note) |
-| `plugin_identifier` | yes | exact plugin basename `woocommerce/woocommerce.php`, or a theme slug `storefront` |
-| `license_status` | yes | `valid`, `expired`, `missing`, `not-required`, `unknown` |
-| `expiry_date` | no | date; a `valid` license past this date is reported as `expired` |
-| `vendor`, `owner` | no | free text (owner: `agency` or `client`) |
-| `verification_source` | no | where it was checked: vendor portal, invoice, wp-admin license page |
-| `verified_at` | no | date of that check |
-| `notes` | no | internal only, never shown to the client |
+| `site_id` | yes | a `siteId` from `clients.json` |
+| `plugin_identifier` | yes | for example `woocommerce/woocommerce.php`, or a theme like `storefront` |
+| `license_status` | yes | `valid`, `expired`, `missing`, `not-required` or `unknown` |
+| `expiry_date` | no | after this date a `valid` license is shown as `expired` |
+| `vendor`, `owner` | no | free text |
+| `verification_source`, `verified_at` | no | where and when you checked it |
+| `notes` | no | internal, never shown to the client |
 
-Rules:
-
-- The key is **site_id + plugin_identifier**, never the display name, so renaming a plugin doesn't break the register. Each pair may appear only once.
-- An installed plugin or theme without a row is reported as `unknown`, never as fine.
-- A row whose identifier isn't installed is listed in R2. If it looks like a typo (`wp-mail-smtp` instead of `wp-mail-smtp/wp_mail_smtp.php`), R2 suggests the right identifier.
-- Find the exact identifiers in the R1 CSV (`identifier` column) or with `yarn collect --details`.
+- Use the exact identifier, not the plugin name. You find it in the R1 CSV or with `yarn collect --details`.
+- A plugin without a row is `unknown`.
+- A row for a plugin that isn't installed is shown in R2, with a "did you mean…?" hint.
 
 ## maintenance_log.csv
 
-| Column | Required | Values |
+| Column | Needed | What to write |
 |---|---|---|
 | `site_id` | yes | a `siteId` from `clients.json` |
-| `date` | yes | the day the work was done; it decides the report month |
-| `action` | yes | `update`, `install`, `remove`, `activate`, `deactivate`, `configure`, `backup`, `security-check`, `other` |
-| `component` | yes | plugin identifier, theme slug, `core`, or short text such as `Full site backup` |
-| `version_before`, `version_after` | no | versions, shown as `3.31.0 › 3.32.1` |
-| `confirmation_by` | for confirmation | name of the person who checked the work |
-| `confirmation_at` | for confirmation | date and time of that check (not before `date`) |
-| `notes` | no | internal only, never shown to the client |
+| `date` | yes | the day of the work (it decides the month) |
+| `action` | yes | `update`, `install`, `remove`, `activate`, `deactivate`, `configure`, `backup`, `security-check` or `other` |
+| `component` | yes | a plugin identifier, theme, `core` or short text like `Full site backup` |
+| `version_before`, `version_after` | no | for example `10.0.4` and `10.2.2` |
+| `confirmation_by` | to confirm | who checked the work |
+| `confirmation_at` | to confirm | when it was checked |
+| `notes` | no | internal, never shown to the client |
 
-**Confirmed** means both `confirmation_by` and `confirmation_at` are filled in. Filling only one of them is an error.
+**Confirmed** means both `confirmation_by` and `confirmation_at` are filled in. Filling only one is an error.
 
 | Row | R2 (internal) | R3 (client) |
 |---|---|---|
-| confirmed, date in the month | "Confirmed maintenance work", with notes | **"Work performed"**, without notes |
-| not confirmed, date in the month | "Unconfirmed log entries" warning | **not shown** |
-| date outside the month | not shown | not shown |
+| confirmed | shown, with notes | shown, without notes |
+| not confirmed | shown as a warning | **not shown** |
 
-Changes seen between two snapshots (for example a WordPress auto-update) are **observations**. They appear only in R2 under "Detected changes" and never become work in R3. Work reaches the client only through a confirmed row in this file.
+Changes the tool sees between two snapshots are **not** work. Work reaches the client only through a confirmed row here. The Claude skill never edits this file.
 
-The Claude skill never adds rows to this file and never fills in the confirmation columns.
-
-## Example: one month
+## Example
 
 ```csv
 site_id,date,action,component,version_before,version_after,confirmation_by,confirmation_at,notes
@@ -71,4 +70,4 @@ acme-main,2026-10-07,update,woocommerce/woocommerce.php,10.0.4,10.2.2,Ana Novak,
 acme-main,2026-10-16,remove,old-slider/old-slider.php,4.2.0,,,,Waiting for client approval
 ```
 
-The first two rows appear in the October R3 as "Varnostna kopija: Full site backup before updates" and "Posodobitev: WooCommerce (10.0.4 › 10.2.2)". The third row appears only in R2 until someone confirms it.
+The first two rows are in the client report: "Varnostna kopija: Full site backup before updates" and "Posodobitev: WooCommerce (10.0.4 › 10.2.2)". The third row is not confirmed, so only R2 shows it.

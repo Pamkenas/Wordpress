@@ -1,73 +1,45 @@
-# 05 · Status endpoint and client-site onboarding (Week 2)
+# 05 · Status plugin and adding a client site
 
-Plugin: [wordpress-plugin/agency-maintenance-status/](../wordpress-plugin/agency-maintenance-status/), version 1.0.2 (single PHP file, no dependencies, PHP ≥ 7.4, WordPress ≥ 5.6, single-site installs).
+The plugin is in [wordpress-plugin/agency-maintenance-status/](../wordpress-plugin/agency-maintenance-status/). Version **1.0.2**. It is one PHP file and needs PHP 7.4+ and WordPress 5.6+.
 
-The plugin is not on WordPress.org and declares `Update URI: false`, so WordPress never asks WordPress.org about it. That also stops an unrelated plugin with the same slug from ever being offered as an "update". The collector instead compares the version installed on each site with the version in this repository (`src/agency-plugin.ts`): an older copy is reported as an update, so the plugin never shows up as "unknown". To update a site, copy the folder again (or upload the new zip) and check that `yarn collect --site <id>` shows it as current.
+## What it does
 
-## API contract
+It adds one read-only address:
 
 ```
 GET /wp-json/agency-maintenance/v1/status
-Authorization: Basic base64(maintenance-auditor:<application password>)
 ```
 
-| Status | When |
+It returns the WordPress version, the saved update lists, must-use plugins and drop-ins. A real answer is in [samples/status-endpoint.sample.json](../samples/status-endpoint.sample.json).
+
+| Answer | When |
 |---|---|
-| 200 | caller has `view_agency_maintenance_status` (Administrator, Maintenance Auditor) |
-| 401 `rest_forbidden` | not authenticated |
-| 403 `rest_forbidden` | authenticated without the capability |
-| 404 `rest_no_route` | plugin not active (collector: `partial`) |
+| 200 | the user is an administrator or the maintenance auditor |
+| 401 | not logged in |
+| 403 | logged in, but without the right |
+| 404 | the plugin is not active (the tool reports `partial`) |
 
-Response headers: `Cache-Control: no-store, private`. Response body, with illustrative values (real output from the local instance: [samples/status-endpoint.sample.json](../samples/status-endpoint.sample.json)):
+It also adds the role **Maintenance Auditor (read-only)**. Why it is safe: [04](04-rest-permissions-and-update-data.md#the-solution-a-read-only-auditor-role).
 
-```jsonc
-{
-  "schemaVersion": 1,                 // the collector rejects other versions as invalid-response
-  "pluginVersion": "1.0.2",
-  "generatedAt": "2026-10-21T07:29:15+00:00",
-  "core": {
-    "installed": "7.1.3",
-    "checked": true,                  // false: never checked, or checked before the current version was installed
-    "offered": null,                  // newest "upgrade"/"autoupdate" offer above installed, else null
-    "lastChecked": 1792567635         // unix time of update_core.last_checked, or null
-  },
-  "plugins": {                        // from update_plugins; keys are plugin basenames
-    "checked": true,
-    "lastChecked": 1792567642,
-    "updates": { "woocommerce/woocommerce.php": "10.2.2" },
-    "noUpdate": ["akismet/akismet.php", "hello.php"],
-    "checkedVersions": { "akismet/akismet.php": "5.7.2", "hello.php": "1.7.2", "woocommerce/woocommerce.php": "10.0.4" }
-  },
-  "themes": { "...": "same shape, keyed by stylesheet" },
-  "mustUsePlugins": [{ "file": "hosting-cache-helper.php", "name": "Hosting Cache Helper", "version": "1.2.0" }],
-  "dropins": [{ "file": "object-cache.php", "name": "Redis Object Cache Drop-In", "version": "2.6.5" }]
-}
-```
+## Security
 
-The endpoint passes WordPress' cached facts through unchanged. The interpretation (yes/no/unknown) happens in the collector, so the rules can change without redeploying the plugin to every client site.
+- It only reads. It has no write code and never starts an update check.
+- The auditor account gets 403 for every write and can't log in over XML-RPC, even with a second role.
+- If the plugin is deactivated, the role is removed and the account can do nothing.
+- It returns no PHP version, paths, users or license keys.
+- Real sites must use HTTPS.
 
-## Security model
+## Add a client site (checklist)
 
-| Requirement (spec §6) | How |
-|---|---|
-| Read-only by design | one route, `WP_REST_Server::READABLE` (GET/HEAD) only; reads transients, never triggers update checks; no write code in the plugin |
-| Capability check on every custom endpoint | `permission_callback` → `current_user_can( 'view_agency_maintenance_status' )` |
-| Least-privilege account | role *Maintenance Auditor (read-only)*: write-capable capabilities exist only during GET REST requests; all other auditor REST methods → 403, and XML-RPC logins are refused. This holds for every account with the role, even with a second role ([04 §1](04-rest-permissions-and-update-data.md#decision-maintenance-auditor-role-with-read-only-guards)) |
-| Fail-safe | deactivation removes the role (account left with zero capabilities); uninstall also removes the custom capability |
-| HTTPS | WordPress refuses application passwords over http on non-local sites; the collector refuses `http://` unless `allowInsecureHttp` is set, and that flag works only for a test site on this computer (`localhost`, `*.local`, `*.test`) |
-| Minimal data | no PHP version, paths, users, options or licence keys in the response |
+Do this only for sites the agency is **allowed** to maintain.
 
-## Onboarding a client site (checklist)
-
-Do this only for sites the agency is **explicitly authorised** to maintain.
-
-1. **Install the plugin.** Zip the folder `wordpress-plugin/agency-maintenance-status/` and upload it under Plugins → Add New → Upload, or copy the folder to `wp-content/plugins/agency-maintenance-status/` over SFTP. Then activate it.
-2. **Create the account.** Users → Add New:
-   - Username `maintenance-auditor`, an agency-controlled mailbox
-   - Role **Maintenance Auditor (read-only)**, and no other role (if a plugin such as bbPress adds one later, the account still stays read-only)
-   - Password: generate and discard (the account never logs in interactively)
-3. **Create the application password.** Users → maintenance-auditor → *Application Passwords* → name `Agency maintenance collector` → Add. Copy it **once** into the agency machine's `.env`, as `WP_<SITE>_APP_PASSWORD=...`. Don't paste it into chat, tickets, email or Claude.
-4. **Register the site** in `clients.json` (non-secret):
+1. **Install the plugin.** Zip the folder `wordpress-plugin/agency-maintenance-status/` and upload it under Plugins → Add New → Upload. Activate it.
+2. **Create the user.** Users → Add New:
+   - username `maintenance-auditor`
+   - role **Maintenance Auditor (read-only)**, no other role
+   - a random password that nobody keeps
+3. **Create the application password.** Users → maintenance-auditor → Application Passwords → name `Agency maintenance collector` → Add. Copy it once into `.env` as `WP_<SITE>_APP_PASSWORD=...`. Never paste it into chat, e-mail or Claude.
+4. **Add the site** to `clients.json`:
 
    ```json
    { "siteId": "acme-main", "clientId": "acme", "clientName": "Acme d.o.o.",
@@ -75,13 +47,19 @@ Do this only for sites the agency is **explicitly authorised** to maintain.
      "passwordEnv": "WP_ACME_MAIN_APP_PASSWORD" }
    ```
 
-5. **Verify**: `yarn collect:dry-run`, then `yarn collect --site acme-main`. Expected: `OK` or `PARTIAL` with a clear reason.
+5. **Test:** `yarn check-config`, then `yarn collect --site acme-main`. You should see `OK`.
 6. **Check that writes are refused** (recommended). In PowerShell:
 
    ```powershell
    curl.exe -u maintenance-auditor -X POST https://www.example.com/wp-json/agency-maintenance/v1/status
    ```
 
-   curl asks for the application password, so it isn't saved in the command history. Expected answer: `{"code":"agency_maintenance_read_only", … "status":403}`. This address has no write function, so the check can't change anything.
+   curl asks for the password, so it isn't saved. The answer should contain `"code":"agency_maintenance_read_only"` and `"status":403`. This can't change anything.
 
-**Revoke access:** delete the application password, or deactivate the plugin (instant fail-safe), or delete the user.
+## Update the plugin
+
+If a site has an older version, `yarn collect` shows it as an update (for example `UPDATE -> 1.0.2`). Copy the new folder over the old one, then run `yarn collect --site <id>` again.
+
+## Remove access
+
+Delete the application password, or deactivate the plugin, or delete the user.

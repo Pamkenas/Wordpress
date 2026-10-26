@@ -1,94 +1,81 @@
-# 01 · Field specification (confirmed, Week 1)
+# 01 · Field specification
 
-Every field from spec §3, the key it uses in the snapshot JSON (`snapshots/YYYY-MM-DD/<siteId>.json`), and where the value comes from. TypeScript definitions: [src/types.ts](../src/types.ts). Example: [samples/snapshot.sample.json](../samples/snapshot.sample.json).
+This page lists every field the tool saves, and where it comes from.
 
-Naming: snapshot JSON uses camelCase (TypeScript convention). CSV and PDF reports use the spec's snake_case names; the mapping is the first two columns below.
+- Snapshots are saved in `snapshots/YYYY-MM-DD/<siteId>.json`. Example: [samples/snapshot.sample.json](../samples/snapshot.sample.json).
+- Snapshots use camelCase names (`installedVersion`). The CSV and PDF reports use snake_case names (`installed_version`).
+- The TypeScript types are in [src/types.ts](../src/types.ts).
 
 ## Site
 
-| Spec field | Snapshot key | Type | Source |
-|---|---|---|---|
-| client_id | `clientId` | string | clients.json |
-| site_id | `siteId` | string, `[a-z0-9-]` | clients.json (also the snapshot file name) |
-| site URL | `siteUrl` | string | clients.json, normalised (no trailing slash) |
-| checked_at | `checkedAt` | ISO 8601 UTC | collector clock when the site's collection started |
-| fetch_status | `fetchStatus` | `success` / `partial` / `failed` | collector, rules below |
-| error | `error` | string or null | one-line summary of `errors` |
-| (detail) | `errors[]` | `{source, kind, httpStatus, message}` | per failed request; `kind` is `auth`, `forbidden`, `timeout`, `tls`, `redirect`, `invalid-response` and others |
-| WordPress core installed version | `core.installedVersion` | string or null | status endpoint (`wp_get_wp_version()`) |
-| available core update | `core.availableVersion` + `core.updateAvailable` | string or null + tri-state | `update_core` transient through the status endpoint |
-| (schema) | `schemaVersion` | `1` | bumped on breaking snapshot changes |
-
-**fetch_status rules**
-
-| Result | Meaning |
-|---|---|
-| `success` | plugins, themes and status endpoint all read |
-| `partial` | plugin list read; themes and/or status endpoint missing. Inventory is usable, but some update states are `unknown` |
-| `failed` | plugin list could not be read (401, 403, timeout, TLS, missing password...). Whatever else was read is kept |
-
-The collector asks each site one question at a time: plugins, then themes, then the status endpoint. The plugin list is required. If it can't be read (wrong password, no access, timeout, site down…), the site is marked `failed` and nothing else is asked, so `errors` holds exactly one clear problem.
-
-## Plugin (ALL: active, inactive, must-use, drop-in)
-
-| Spec field | Snapshot key | Type | Source |
-|---|---|---|---|
-| site_id | (parent `siteId`) | string | added as a column in CSV |
-| plugin identifier/file | `identifier` | string, e.g. `akismet/akismet.php` | `/wp/v2/plugins` `plugin` + `.php` (see [04](04-rest-permissions-and-update-data.md#2-plugin-identifiers)) |
-| (kind) | `kind` | `plugin` / `must-use` / `drop-in` | must-use and drop-ins come from the status endpoint |
-| name | `name` | string | `/wp/v2/plugins` |
-| installed_version | `installedVersion` | string or null | `/wp/v2/plugins` |
-| active/inactive | `status` | `active` / `inactive` / `unknown` | `/wp/v2/plugins` (`network-active` → `active`) |
-| update_available | `updateAvailable` | `yes` / `no` / `unknown` (CSV: `true` / `false` / `unknown`) | `update_plugins` transient |
-| offered_version | `offeredVersion` | string or null | `update_plugins` transient `response[id].new_version` |
-| source | `source` | string | `update_plugins transient`, or `none` |
-| last_check | `lastCheck` | ISO 8601 or null | transient `last_checked` |
-| (reason) | `updateNote` | string or null | why `updateAvailable` is `unknown` |
-
-## Theme (ALL)
-
-| Spec field | Snapshot key | Type | Source |
-|---|---|---|---|
-| theme slug | `slug` | string (stylesheet) | `/wp/v2/themes` |
-| name | `name` | string | `/wp/v2/themes` `name.raw` |
-| installed_version | `installedVersion` | string or null | `/wp/v2/themes` |
-| active/inactive | `status` | `active` / `inactive` | `/wp/v2/themes` |
-| update_available | `updateAvailable` | tri-state | `update_themes` transient |
-| offered_version | `offeredVersion` | string or null | `update_themes` transient |
-| (added) | `source`, `lastCheck`, `updateNote` | | same meaning as for plugins |
-
-## When is an update state `yes`, `no` or `unknown`?
-
-A missing update entry is **never** read as "up to date". `resolveUpdate()` in [src/collect.ts](../src/collect.ts) applies these rules in order:
-
-| # | Condition | Result | `updateNote` |
-|---|---|---|---|
-| 1 | status endpoint unavailable | unknown | update data unavailable |
-| 2 | WordPress never completed an update check | unknown | has not completed an update check |
-| 3 | item not in the transient's `checked` list (installed after the check) | unknown | not included in the last update check |
-| 4 | installed version ≠ version recorded at the check | unknown | installed version changed since the last update check |
-| 5 | item in `response` (update list) | **yes** + offered version | — |
-| 6 | item in `no_update` | **no** | — |
-| 7 | checked, but in neither list (premium/custom plugin with its own updater) | unknown | no update channel reported; verify manually |
-| — | must-use plugin / drop-in | unknown | WordPress does not check these |
-| core | `update_core.version_checked` ≠ installed version | unknown | check missing or older than installed version |
-
-## License register and maintenance log (implemented in Weeks 3–4)
-
-| File | Columns | Notes |
+| Field | Snapshot key | Comes from |
 |---|---|---|
-| `licenses.csv` | site_id, plugin_identifier, license_status, expiry_date?, vendor, owner, verification_source, verified_at, notes | joined on **site_id + plugin identifier** (never the display name). A plugin missing from the register shows `license_status = unknown` |
-| `maintenance_log.csv` | site_id, date, action, component, version_before?, version_after?, confirmation_by, confirmation_at, notes | only confirmed rows (both confirmation columns filled) appear in R3 as work performed |
+| client_id | `clientId` | clients.json |
+| site_id | `siteId` | clients.json (also the snapshot file name) |
+| site URL | `siteUrl` | clients.json |
+| checked_at | `checkedAt` | the time the check started (UTC) |
+| fetch_status | `fetchStatus` | `success`, `partial` or `failed` (see below) |
+| error | `error`, `errors[]` | what went wrong, if anything |
+| WordPress version | `core.installedVersion` | status plugin |
+| WordPress update | `core.availableVersion`, `core.updateAvailable` | status plugin |
 
-Allowed values, validation rules and Excel tips: [06](06-license-register-and-maintenance-log.md).
+**fetch_status**
 
-## Agency settings (`agency.json`)
+| Value | Meaning |
+|---|---|
+| `success` | plugins, themes and the status plugin were all read |
+| `partial` | the plugins were read, but the themes or the status plugin were not. Some update states are `unknown` |
+| `failed` | the plugin list could not be read (wrong password, 403, timeout…). Nothing more is asked |
+
+## Plugins
+
+All plugins are listed: active, inactive, must-use and drop-ins.
+
+| Field | Snapshot key | Example |
+|---|---|---|
+| plugin identifier | `identifier` | `akismet/akismet.php` (see [04](04-rest-permissions-and-update-data.md#plugin-identifiers)) |
+| kind | `kind` | `plugin`, `must-use`, `drop-in` |
+| name | `name` | Akismet Anti-spam |
+| installed_version | `installedVersion` | 5.6 |
+| active/inactive | `status` | `active`, `inactive`, `unknown` |
+| update_available | `updateAvailable` | `yes`, `no`, `unknown` (CSV: `true`, `false`, `unknown`) |
+| offered_version | `offeredVersion` | 5.7 |
+| source | `source` | where the update state came from |
+| last_check | `lastCheck` | when WordPress last checked for updates |
+| note | `updateNote` | why the state is `unknown` |
+
+## Themes
+
+All themes are listed, active and inactive. The fields are the same as for plugins, except that the key is `slug` (for example `twentytwentyfive`).
+
+## When is an update `yes`, `no` or `unknown`?
+
+The tool never guesses "up to date". The rules are in `resolveUpdate()` in [src/collect.ts](../src/collect.ts):
+
+| Situation | Result |
+|---|---|
+| the status plugin could not be read | unknown |
+| WordPress has never checked for updates | unknown |
+| the item was installed after the last check | unknown |
+| the installed version changed since the last check | unknown |
+| WordPress lists an update | **yes**, with the offered version |
+| WordPress lists it as up to date | **no** |
+| WordPress knows nothing about it (premium plugin) | unknown, "verify manually" |
+| must-use plugin or drop-in | unknown (WordPress doesn't check them) |
+
+Names and versions are saved as plain text. For example `Header &amp; Footer` from WordPress becomes `Header & Footer`.
+
+## License register and work log
+
+The columns of `licenses.csv` and `maintenance_log.csv` are explained in [06](06-license-register-and-maintenance-log.md).
+
+## agency.json
 
 | Key | Default | Used for |
 |---|---|---|
-| `agencyName` | required | R3 header and footer, R1/R2 footer |
-| `contactEmail`, `website` | none | R3 contact line and footer |
-| `primaryColor` | `#1f6f8b` | R3 top bar and headings |
-| `logo` | none | `.png` or `.jpg`, path relative to `agency.json`; replaces the agency name in the R3 header |
-| `language` | `en` | R3 language: `en` or `sl` (R1 and R2 are always English) |
-| `csvDelimiter` | `,` | R1 CSV separator: `,` or `;` (Slovenian Excel) |
+| `agencyName` | required | report headers and footers |
+| `contactEmail`, `website` | none | contact line and footer of R3 |
+| `primaryColor` | `#1f6f8b` | R3 colour |
+| `logo` | none | a `.png` or `.jpg` instead of the agency name in R3 |
+| `language` | `en` | R3 language: `en` or `sl` |
+| `csvDelimiter` | `,` | CSV separator: `,` or `;` (Slovenian Excel) |
