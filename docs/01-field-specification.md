@@ -27,14 +27,14 @@ Naming: snapshot JSON uses camelCase (TypeScript convention). CSV and PDF report
 | `partial` | plugin list read; themes and/or status endpoint missing. Inventory is usable, but some update states are `unknown` |
 | `failed` | plugin list could not be read (401, 403, timeout, TLS, missing password...). Whatever else was read is kept |
 
-The collector asks each site one question at a time (plugins, then themes, then the status endpoint). If the site can't be reached at all (timeout, network error, TLS error or redirect), it skips the remaining requests instead of waiting for each one to time out, so `errors` holds only that first problem.
+The collector asks each site one question at a time: plugins, then themes, then the status endpoint. The plugin list is required. If it can't be read (wrong password, no access, timeout, site down…), the site is marked `failed` and nothing else is asked, so `errors` holds exactly one clear problem.
 
 ## Plugin (ALL: active, inactive, must-use, drop-in)
 
 | Spec field | Snapshot key | Type | Source |
 |---|---|---|---|
 | site_id | (parent `siteId`) | string | added as a column in CSV |
-| plugin identifier/file | `identifier` | string, e.g. `akismet/akismet.php` | `/wp/v2/plugins` `plugin` + `.php` (see [04](04-rest-permissions-and-update-data.md#plugin-identifiers)) |
+| plugin identifier/file | `identifier` | string, e.g. `akismet/akismet.php` | `/wp/v2/plugins` `plugin` + `.php` (see [04](04-rest-permissions-and-update-data.md#2-plugin-identifiers)) |
 | (kind) | `kind` | `plugin` / `must-use` / `drop-in` | must-use and drop-ins come from the status endpoint |
 | name | `name` | string | `/wp/v2/plugins` |
 | installed_version | `installedVersion` | string or null | `/wp/v2/plugins` |

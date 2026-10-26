@@ -1,13 +1,37 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 import type { SiteConfig } from "../src/config.ts";
 import { buildMockSite, SAMPLE_SITES, type FixtureSite } from "../src/sample/fixtures.ts";
 import { startMockWordPress, type MockWordPress } from "../src/sample/mock-wordpress.ts";
+import { WordPressApiError } from "../src/wordpress-client.ts";
+
+const CLI = fileURLToPath(new URL("../src/index.ts", import.meta.url));
 
 export async function tempDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), "wp-maint-"));
+}
+
+export function runCli(args: string[], env: NodeJS.ProcessEnv = {}, cwd: string = process.cwd()) {
+  return spawnSync(process.execPath, [CLI, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+    cwd,
+  });
+}
+
+export async function expectApiError(promise: Promise<unknown>): Promise<WordPressApiError> {
+  try {
+    await promise;
+  } catch (error) {
+    assert.ok(error instanceof WordPressApiError, `expected WordPressApiError, got ${error}`);
+    return error;
+  }
+  assert.fail("expected the request to fail");
 }
 
 export function textOf(node: unknown): string {

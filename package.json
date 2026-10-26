@@ -1,6 +1,6 @@
 {
   "name": "wordpress-maintenance",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Read-only WordPress maintenance inventory and monthly reports (Claude Code skill MVP)",
   "type": "module",
   "license": "MIT",
@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit -p .",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"*.json\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"*.json\"",
+    "clean": "node -e \"for (const dir of ['snapshots', 'reports', 'sample-output']) require('fs').rmSync(dir, { recursive: true, force: true })\" && echo Removed snapshots, reports and sample-output.",
     "verify": "yarn typecheck && yarn format:check && yarn test"
   },
   "devDependencies": {

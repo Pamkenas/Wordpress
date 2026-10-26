@@ -6,7 +6,6 @@ import {
   type CollectionError,
   type CollectionSource,
   type CoreInventory,
-  type ErrorKind,
   type PluginInventory,
   type SiteInventory,
   type ThemeInventory,
@@ -38,8 +37,6 @@ const NOTE = {
   dropin: "drop-ins are not checked for updates by WordPress",
   coreStale: "core update check is missing or older than the installed version",
 };
-
-const UNREACHABLE_KINDS: ErrorKind[] = ["timeout", "network", "tls", "redirect"];
 
 function toError(source: CollectionSource, error: unknown): CollectionError {
   if (!(error instanceof WordPressApiError)) {
@@ -209,10 +206,6 @@ function emptyInventory(site: SiteConfig, checkedAt: string): SiteInventory {
   };
 }
 
-function siteUnreachable(errors: CollectionError[]): boolean {
-  return errors.some((error) => UNREACHABLE_KINDS.includes(error.kind));
-}
-
 function errorSummary(errors: CollectionError[]): string | null {
   if (errors.length === 0) return null;
   return errors.map((error) => `${error.source}: ${error.message}`).join("; ");
@@ -236,39 +229,33 @@ export async function collectSite(
 
   const client = new WordPressClient(site.url, site.username, password, options);
 
-  let plugins: RawPlugin[] | null = null;
+  let plugins: RawPlugin[];
   try {
     plugins = await client.getPlugins();
   } catch (error) {
     errors.push(toError("plugins", error));
+    result.error = errorSummary(errors);
+    return result;
   }
 
   let themes: RawTheme[] | null = null;
-  if (!siteUnreachable(errors)) {
-    try {
-      themes = await client.getThemes();
-    } catch (error) {
-      errors.push(toError("themes", error));
-    }
+  try {
+    themes = await client.getThemes();
+  } catch (error) {
+    errors.push(toError("themes", error));
   }
 
   let status: RawStatus | null = null;
-  if (!siteUnreachable(errors)) {
-    try {
-      status = await client.getStatus();
-    } catch (error) {
-      errors.push(toError("status", error));
-    }
+  try {
+    status = await client.getStatus();
+  } catch (error) {
+    errors.push(toError("status", error));
   }
 
   result.core = normalizeCore(status);
-  if (plugins) result.plugins = normalizePlugins(plugins, status);
+  result.plugins = normalizePlugins(plugins, status);
   if (themes) result.themes = normalizeThemes(themes, status);
-
-  if (!plugins) result.fetchStatus = "failed";
-  else if (errors.length > 0) result.fetchStatus = "partial";
-  else result.fetchStatus = "success";
-
+  result.fetchStatus = errors.length > 0 ? "partial" : "success";
   result.error = errorSummary(errors);
   return result;
 }

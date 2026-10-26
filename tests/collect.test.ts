@@ -199,8 +199,18 @@ describe("acceptance: read-only", () => {
   test("a full collection run sends nothing but GET requests", async () => {
     await withMockSites([...SAMPLE_SITES], async (sites, mock) => {
       await collectSites(sites, { ...FAST, concurrency: 2 });
-      assert.ok(mock.requests.length >= SAMPLE_SITES.length * 3);
+      assert.equal(mock.requests.length, 10);
       assert.deepEqual(new Set(mock.requests.map((r) => r.method)), new Set(["GET"]));
+    });
+  });
+
+  test("a site whose plugin list is refused is not asked anything else", async () => {
+    await withMockSites([sampleFixture("demo-blog")], async ([site], mock) => {
+      assert.ok(site);
+      const inventory = await collectSite(site, FAST);
+      assert.equal(inventory.fetchStatus, "failed");
+      assert.equal(inventory.errors.length, 1);
+      assert.equal(mock.requests.length, 1);
     });
   });
 });

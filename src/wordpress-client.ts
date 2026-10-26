@@ -54,6 +54,10 @@ export interface ClientOptions {
 
 export const DEFAULT_CLIENT_OPTIONS: ClientOptions = { timeoutMs: 15000, retries: 2, retryDelayMs: 1000 };
 
+interface FetchError {
+  cause?: { code?: string; message?: string };
+}
+
 const RETRYABLE_KINDS: ErrorKind[] = ["timeout", "network", "rate-limited", "server"];
 const MAX_RETRY_AFTER_MS = 10000;
 const TLS_ERROR = /CERT|SSL|TLS|SELF_SIGNED|UNABLE_TO_VERIFY|ALTNAME/;
@@ -197,10 +201,14 @@ function fetchFailure(error: unknown, route: string): WordPressApiError {
     return new WordPressApiError("timeout", null, `timed out (GET ${route})`);
   }
 
-  const cause = (error as { cause?: { code?: string; message?: string } }).cause;
+  const cause = (error as FetchError).cause;
   const code = cause?.code ?? "";
   if (TLS_ERROR.test(code)) {
-    return new WordPressApiError("tls", null, `TLS certificate verification failed: ${code} (GET ${route})`);
+    return new WordPressApiError(
+      "tls",
+      null,
+      `TLS error ${code}: the HTTPS certificate or connection is not valid (GET ${route})`,
+    );
   }
 
   let detail = code;

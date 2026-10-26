@@ -1,4 +1,4 @@
-import type { Content, TableCell, TDocumentDefinitions } from "pdfmake/interfaces.js";
+import type { Content, Size, TableCell, TDocumentDefinitions } from "pdfmake/interfaces.js";
 import type { AgencyConfig } from "../agency.ts";
 import { toCsv } from "../csv.ts";
 import { formatPeriod, localDateTime } from "../dates.ts";
@@ -32,6 +32,37 @@ export const R1_COLUMNS = [
   "last_check",
   "note",
 ];
+
+const OVERVIEW_HEADERS = [
+  "Sites",
+  "Success",
+  "Partial",
+  "Failed",
+  "Not collected",
+  "Updates",
+  "Unknown updates",
+  "License issues",
+  "License unknown",
+];
+
+const OVERVIEW_WIDTHS: Size[] = ["*", "*", "*", "*", "*", "*", "*", "*", "*"];
+
+const SITE_HEADERS = [
+  "Site",
+  "Client",
+  "Snapshot",
+  "Status",
+  "WordPress",
+  "Plugins",
+  "Themes",
+  "Updates",
+  "Unknown",
+  "License issues",
+  "Changes",
+  "Work",
+];
+
+const SITE_WIDTHS: Size[] = ["*", 90, 52, 46, 70, 36, 36, 38, 40, 40, 40, 62];
 
 interface UpdateGroup {
   name: string;
@@ -256,32 +287,7 @@ export function buildR1Pdf(
 ): TDocumentDefinitions {
   const summaries = reports.map(summarizeReport);
   const totals = totalsOf(summaries);
-
-  const overviewHeaders = [
-    "Sites",
-    "Success",
-    "Partial",
-    "Failed",
-    "Not collected",
-    "Updates",
-    "Unknown updates",
-    "License issues",
-    "License unknown",
-  ];
-  const siteHeaders = [
-    "Site",
-    "Client",
-    "Snapshot",
-    "Status",
-    "WordPress",
-    "Plugins",
-    "Themes",
-    "Updates",
-    "Unknown",
-    "License issues",
-    "Changes",
-    "Work",
-  ];
+  const overview = [overviewRow(reports, summaries, totals)];
 
   const content: Content[] = [
     { text: "Consolidated maintenance report", fontSize: 18, bold: true },
@@ -289,15 +295,10 @@ export function buildR1Pdf(
     muted(`Generated ${localDateTime(generatedAt)}. Internal report with client data: do not send to clients.`),
 
     heading("Overview"),
-    table(
-      overviewHeaders,
-      [overviewRow(reports, summaries, totals)],
-      ["*", "*", "*", "*", "*", "*", "*", "*", "*"],
-      "No sites configured.",
-    ),
+    table(OVERVIEW_HEADERS, overview, OVERVIEW_WIDTHS, "No sites configured."),
 
     heading("Sites"),
-    table(siteHeaders, reports.map(siteRow), ["*", 90, 52, 46, 70, 36, 36, 38, 40, 40, 40, 62], "No sites configured."),
+    table(SITE_HEADERS, reports.map(siteRow), SITE_WIDTHS, "No sites configured."),
     muted(
       "Updates and unknown counts include WordPress core. Changes are observations between snapshots, not confirmed work.",
     ),

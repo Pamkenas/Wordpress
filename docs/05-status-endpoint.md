@@ -76,5 +76,12 @@ Do this only for sites the agency is **explicitly authorised** to maintain.
    ```
 
 5. **Verify**: `yarn collect:dry-run`, then `yarn collect --site acme-main`. Expected: `OK` or `PARTIAL` with a clear reason.
+6. **Check that writes are refused** (recommended). In PowerShell:
+
+   ```powershell
+   curl.exe -u maintenance-auditor -X POST https://www.example.com/wp-json/agency-maintenance/v1/status
+   ```
+
+   curl asks for the application password, so it isn't saved in the command history. Expected answer: `{"code":"agency_maintenance_read_only", … "status":403}`. This address has no write function, so the check can't change anything.
 
 **Revoke access:** delete the application password, or deactivate the plugin (instant fail-safe), or delete the user.

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { ConfigError, loadSites, parseSites } from "../src/config.ts";
 
@@ -20,12 +21,17 @@ function problems(data: unknown): string[] {
   assert.fail("expected a ConfigError");
 }
 
-test("clients.example.json is valid", async () => {
+test("clients.example.json is valid and .env.example has an empty line for each password", async () => {
   const sites = await loadSites("clients.example.json");
   assert.deepEqual(
     sites.map((s) => s.siteId),
     ["local-test", "acme-main"],
   );
+
+  const template = await readFile(".env.example", "utf8");
+  for (const site of sites) {
+    assert.match(template, new RegExp(`^${site.passwordEnv}=$`, "m"), site.passwordEnv);
+  }
 });
 
 test("trailing slashes are removed from site URLs", () => {

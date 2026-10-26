@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { collectSites } from "../src/collect.ts";
 import { SAMPLE_SITES } from "../src/sample/fixtures.ts";
@@ -14,9 +12,7 @@ import {
   writeSnapshots,
   type RunInfo,
 } from "../src/snapshot.ts";
-import { FAST, TEST_PASSWORD, tempDir, withMockSites } from "./helpers.ts";
-
-const CLI = fileURLToPath(new URL("../src/index.ts", import.meta.url));
+import { FAST, runCli, TEST_PASSWORD, tempDir, withMockSites } from "./helpers.ts";
 
 const TEST_RUN: RunInfo = {
   mode: "sample",
@@ -24,14 +20,6 @@ const TEST_RUN: RunInfo = {
   finishedAt: "f",
   options: { concurrency: 2, timeoutMs: 1, retries: 0 },
 };
-
-function runCli(args: string[], env: NodeJS.ProcessEnv = {}, cwd: string = process.cwd()) {
-  return spawnSync(process.execPath, [CLI, ...args], {
-    encoding: "utf8",
-    env: { ...process.env, ...env },
-    cwd,
-  });
-}
 
 test("snapshot folder uses the local calendar date", () => {
   assert.equal(snapshotDate(new Date(2026, 0, 5, 0, 30)), "2026-01-05");

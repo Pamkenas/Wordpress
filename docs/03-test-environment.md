@@ -17,7 +17,8 @@ Local WordPress used for development and acceptance tests. It holds no client da
 | inactive plugin is listed | Classic Editor, CleanTalk, Hello Dolly (both copies) |
 | inactive theme is listed | Twenty Twenty-Four, Twenty Twenty-Three |
 | plugin not yet in the update check → unknown | Agency Maintenance Status, until WordPress' next check |
-| premium plugin / pending updates / stale check / 403 / timeout | not reproducible locally without paid plugins or old versions, so covered by the mock sites (`yarn collect:sample`, `yarn test`) |
+| premium plugin / pending updates / stale check | not reproducible locally without paid plugins or old versions, so covered by the mock sites (`yarn collect:sample`, `yarn test`) |
+| 403 / timeout | covered by the mock sites, and also tested live on 2026-10-26 ([11](11-test-report.md#3-live-tests-on-the-local-wordpress)) |
 
 To create a pending update locally, install an older plugin version (for example, download an older Akismet zip from wordpress.org and upload it), then open **Dashboard → Updates → Check again**.
 
@@ -68,6 +69,10 @@ Re-running the setup script is safe: it updates the plugin files, resets the use
 | Agency plugin 1.0.0 on the site, 1.0.1 in the repository | reported as an update (`1.0.0 → 1.0.1`), not as unknown |
 | After copying 1.0.1 to the site | 0 updates, 0 unknown. R2 lists the change 1.0.0 → 1.0.1 under "Detected changes (observations)" against the 2026-10-21 snapshot. R3 shows no work (none was logged) and "no open issues". |
 | Licenses and work without register or log files | every license `unknown`, R3 "no maintenance work recorded". No test records were invented in the real files. |
+
+## Verified on 2026-10-26 (Week 5)
+
+Error cases, the read-only checks and a report with a test register and log: see [11 · Test report](11-test-report.md), sections 3 and 4.
 
 ## Troubleshooting
 
