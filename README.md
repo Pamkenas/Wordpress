@@ -29,7 +29,7 @@ yarn verify
    copy agency.example.json agency.json
    ```
 
-2. Install the status plugin on each site: [docs/05](docs/05-status-endpoint.md#onboarding-a-client-site-checklist).
+2. Install the status plugin on each site: [docs/05](docs/05-status-endpoint.md#add-a-client-site-checklist).
 3. Every month run:
 
    ```powershell
@@ -56,3 +56,7 @@ yarn verify
 - HTTPS only (plain `http://` only for a test site on this computer).
 
 More: [docs/08-handover.md](docs/08-handover.md).
+
+## WP Control
+
+The two WordPress plugins from the WP Control spec (Manager and Agent) are in [wp-control/](wp-control/README.md).

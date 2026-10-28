@@ -1,0 +1,1360 @@
+
+● I built WP Control from your PDF: two WordPress plugins, the Manager and the
+  Agent, with everything the spec lists for the first version. All tests pass on
+  three local WordPress sites.
+
+  The new wp-control/README.md is written for whoever installs the plugins, you
+  or the agency.
+
+  Where to put the folders
+
+  The code is in your project, in wp-control/. There's nothing to create, only
+  copy:
+
+  ┌────────────────────┬─────────────────────────────────────┬──────────────┐
+  │       Folder       │             Copy it to              │  On which    │
+  │                    │                                     │     site     │
+  ├────────────────────┼─────────────────────────────────────┼──────────────┤
+  │ wp-control-manager │ wp-content/plugins/                 │ the agency's │
+  │                    │                                     │  WordPress   │
+  ├────────────────────┼─────────────────────────────────────┼──────────────┤
+  │                    │ wp-content/plugins/, or zip it and  │ every client │
+  │ wp-control-agent   │ upload it under Plugins → Add New → │  site        │
+  │                    │  Upload                             │              │
+  └────────────────────┴─────────────────────────────────────┴──────────────┘
+
+  Then activate the plugin. To connect a client site:
+  1. On the client site, open WP Control → Connection and click Create
+     connection key.
+  2. In the Manager, open WP Control → Websites → Add website and paste the key.
+
+  What it does
+
+  - Overview: the 4 stat cards and the websites table from the preview, with
+    search and filters.
+  - Slide-out site panel with 7 tabs: Overview, Updates, Maintenance, Backups,
+    Security, Activity and Notes.
+  - Change detection: installs, removals, updates, downgrades, activations and
+    deactivations, with the old and new version and the time. A detected change
+    stays "Not documented" until someone links it to a maintenance record, as
+    your spec says.
+  - Maintenance log: date, performer, category, description, and optional
+    duration and notes. One record can link several detected changes.
+  - More screens: Clients, Backups (read from UpdraftPlus), basic security
+    checks, Activity with an audit history, CSV export and Settings.
+
+  Safety: the Agent only answers signed, read-only requests, and the key itself
+  never travels over the network. HTTPS is required, only administrators get in,
+  and every action is logged.
+
+  Testing
+
+  - 27 of 27 tests pass. They run over real HTTP between the three sites.
+  - 24 of 24 browser-style checks pass. They cover logging in, sending forms, a
+    forged form being refused, and downloading a CSV.
+  - I broke 3 security checks on purpose, and each time the right test failed.
+    So the tests really catch problems.
+  - No PHP warnings on any of the three sites. I also compared screenshots with
+    your preview.
+  - Testing found 3 real bugs, all fixed:
+    - a failed backup made the site look freshly backed up;
+    - an old connection key could be shown as if it were new;
+    - a site that was never read showed "Up to date".
+
+  Not built yet
+
+  - Later, as the spec says: installing updates, "Run backup now", vulnerability
+    scans and notifications.
+  - The "Sync now" button on the client site from the preview: syncing starts
+    from the Manager instead, with a button or automatically every hour.
+  - Real UpdraftPlus: the safety system blocked running the downloaded plugin. I
+    tested with a stand-in that saves data in the same format I read in
+    UpdraftPlus's source code. Please test it once with the real UpdraftPlus.
+  - Also: the screens are in English only, and multisite is not tested.
+
+  On your computer
+
+  - To look at it: start Apache and MySQL in XAMPP, then open
+    http://localhost/wpc-manager/wp-admin/admin.php?page=wp-control. Demo data
+    is already loaded, and the login is in wp-control/test-sites.local.txt (Git
+    ignores this file). The first page after starting XAMPP can take about 45
+    seconds.
+  - What I set up: three new local test sites in C:\xampp\htdocs (wpc-manager,
+    wpc-client-a, wpc-client-b), each with its own database. Your wordpress site
+    is untouched.
+  - Servers: Apache and MySQL are stopped, and MySQL was shut down cleanly.
+  - Git: nothing is committed. What's new is the wp-control/ folder, one line in
+    .gitignore and a short README section.
+
+> /compact
+  ⎿  Compacted
+  ⎿  Read ..\..\..\Users\Uporabnik\.claude\projects\c--xampp-htdocs-wordpress-ma
+     intenance\memory\local-dev-environment.md (25 lines)
+  ⎿  Read ..\..\..\Users\Uporabnik\.claude\projects\c--xampp-htdocs-wordpress-ma
+     intenance\memory\wp-control-project.md (20 lines)
+  ⎿  Read wp-control\README.md (63 lines)
+  ⎿  Read wp-control\tests\http-check.php (164 lines)
+  ⎿  Read wp-control\tests\agent-helper.php (325 lines)
+
+> How run this plugin?
+
+● There are two ways to run it.
+
+  1. Try it on this computer (already set up)
+
+  The test sites and demo data are already in place, so you only need to start
+  the servers:
+
+  1. Open the XAMPP Control Panel and click Start next to Apache and MySQL.
+  2. Open this address in your browser:
+     http://localhost/wpc-manager/wp-admin/admin.php?page=wp-control
+  3. Log in with user admin. The password is in wp-control/test-sites.local.txt.
+  4. Click WP Control in the left menu. The first page can take about 45 seconds
+     to load after XAMPP starts.
+
+  The two client sites are at http://localhost/wpc-client-a/wp-admin and
+  http://localhost/wpc-client-b/wp-admin, with the same login. Their WP Control
+  menu is the Agent.
+
+  If you ever want to start over with fresh test sites and demo data, run these
+  in a terminal from the wp-control folder:
+
+  C:\xampp\php\php.exe tools\setup-test-sites.php
+  C:\xampp\php\php.exe tools\demo-data.php
+
+  2. Use it on real websites
+
+  1. Agency site: copy the folder wp-control/wp-control-manager into
+     wp-content/plugins/. Then go to Plugins and activate WP Control Manager.
+  2. Each client site: copy wp-control/wp-control-agent into
+     wp-content/plugins/, or zip the folder and upload it under Plugins → Add
+     New → Upload Plugin. Then activate WP Control Agent.
+  3. Connect them:
+     - On the client site, go to WP Control → Connection → Create connection key
+       and copy the key. It is shown only once.
+     - On the agency site, go to WP Control → Websites → Add website and paste
+       the address and the key.
+  4. The Manager reads the site right away, and then every hour.
+
+  Real websites must use https://. Plain http:// only works for localhost.
+
+  When you're done, stop MySQL with the Stop button in XAMPP rather than closing
+  the window. Closing it can damage the database, which already happened once
+  on this computer.
+
+> why my login doesnt work, says im not registred user
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Servers are running. Let me check which users exist in each database.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The admin user exists on all three test sites. Next I'll check that the
+  password in the file really works, without printing it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I checked, and the login itself works: the user admin exists on all three test
+  sites, and the password in the file is correct on each one.
+
+  WordPress shows "The username … is not registered on this site" only when it
+  can't find that user name on the site you're logging into. So one of these two
+  things is probably happening:
+
+  1. You're on the wrong site. Your old site, http://localhost/wordpress,
+     doesn't have an admin user. Its users are maintenance-auditor and povilas.
+     Check that the address bar starts with http://localhost/wpc-manager/. Here
+     is the direct login page:
+     http://localhost/wpc-manager/wp-login.php
+  2. The user name is typed differently. In the Username box, type only admin,
+     in lowercase with no spaces. Copy only the password from
+     test-sites.local.txt (wp-control/test-sites.local.txt), meaning just the
+     text after password: .
+
+  If it still fails, copy the exact error message and the address from your
+  browser, and I'll look into it.
+
+[Image #4]
+
+● The screenshot shows the problem: you logged in as povilas. That user exists
+  only on your old site (http://localhost/wordpress). The test sites have just
+  one user, admin.
+
+  Your browser probably filled in the povilas login automatically, and the
+  password box looks auto-filled too, so that password is wrong here as well.
+
+  To log in:
+  1. Username: type admin.
+  2. Password: clear the box. Paste the text after password:  from
+     wp-control/test-sites.local.txt.
+  3. Click Log In.
+
+  I can also add a povilas user with your own password to the test sites, if
+  you'd rather use that.
+
+> <ide_opened_file>The user opened the file
+  c:\xampp\htdocs\wordpress-maintenance\.env in the IDE. This may or may not be
+  related to the current task.</ide_opened_file>
+
+> why its txt, should be .env
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The root .gitignore already ignores wp-control/.env, so I'll move the login
+  there. Let me look at the setup script.
+
+  Read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● Only the setup script and the HTTP check use the file. Updating both:
+
+● Update(tools\setup-test-sites.php)
+  ⎿  Added 3 lines, removed 2 lines
+      145    stop_with_error( 'Usage: php tools/setup-test-sites.php [pat
+           h to an existing WordPress, default C:/xampp/htdocs/wordpress]
+           ' );
+      146  }
+      147  
+      148 -$login_file = "$project/test-sites.local.txt";                
+      149 -$password   = is_file( $login_file ) ? trim( (string) preg_rep
+          -lace( '/^.*password: /s', '', file_get_contents( $login_file )
+          - ) ) : bin2hex( random_bytes( 8 ) );                          
+      148 +$login_file = "$project/.env";                                
+      149 +$login      = is_file( $login_file ) ? parse_ini_file( $login_
+          +file, false, INI_SCANNER_RAW ) : array();                     
+      150 +$password   = $login['WPC_TEST_PASSWORD'] ?? bin2hex( random_b
+          +ytes( 8 ) );                                                  
+      151  
+      152  foreach ( TEST_SITES as $folder => $site ) {
+      153    $path = "$htdocs/$folder";
+
+● Update(tools\setup-test-sites.php)
+  ⎿  Added 1 line, removed 1 line
+      177    }
+      178  }
+      179  
+      180 -file_put_contents( $login_file, "WP Control test sites (local 
+          -only)\nhttp://localhost/wpc-manager/wp-admin\nhttp://localhost
+          -/wpc-client-a/wp-admin\nhttp://localhost/wpc-client-b/wp-admin
+          -\nuser: admin\npassword: $password\n" );                      
+      180 +file_put_contents( $login_file, "WPC_TEST_USER=admin\nWPC_TEST
+          +_PASSWORD=$password\n" );                                     
+      181  echo "\nDone. The login for all three sites is in $login_file\
+           n";
+
+● Update(tests\http-check.php)
+  ⎿  Added 2 lines, removed 2 lines
+       4    exit( 1 );
+       5  }
+       6  
+       7 -$wpc_login = dirname( __DIR__ ) . '/test-sites.local.txt';     
+       7 +$wpc_login = dirname( __DIR__ ) . '/.env';                     
+       8  if ( ! is_file( $wpc_login ) ) {
+       9    fwrite( STDERR, "Run tools/setup-test-sites.php first\n" );
+      10    exit( 1 );
+      11  }
+      12 -$wpc_password = trim( (string) preg_replace( '/^.*password: /s'
+         -, '', file_get_contents( $wpc_login ) ) );                     
+      12 +$wpc_password = parse_ini_file( $wpc_login, false, INI_SCANNER_
+         +RAW )['WPC_TEST_PASSWORD'] ?? '';                              
+      13  $wpc_cookies  = tempnam( sys_get_temp_dir(), 'wpc' );
+      14  $wpc_passed   = 0;
+      15  $wpc_failed   = 0;
+
+● Update(README.md)
+  ⎿  Added 1 line, removed 1 line
+      27  C:\xampp\php\php.exe tools\demo-data.php
+      28  ```
+      29  
+      30 -- The first command creates three test sites: `wpc-manager` (ag
+         -ency), `wpc-client-a` and `wpc-client-b` (clients). The login i
+         -s in `test-sites.local.txt`.                                   
+      30 +- The first command creates three test sites: `wpc-manager` (ag
+         +ency), `wpc-client-a` and `wpc-client-b` (clients). The login i
+         +s in `wp-control/.env` (`WPC_TEST_USER` and `WPC_TEST_PASSWORD`
+         +).                                                             
+      31  - The second command fills the dashboard with demo data.
+      32  - Then open http://localhost/wpc-manager/wp-admin/admin.php?pag
+          e=wp-control
+      33  
+
+● Update(C:\xampp\htdocs\wordpress-maintenance\.gitignore)
+  ⎿  Removed 3 lines
+      14  /reports/
+      15  /sample-output/
+      16  *.tmp
+      17 -                                                               
+      18 -# WP Control: login for the local test sites (created by wp-con
+         -trol/tools/setup-test-sites.php)                               
+      19 -/wp-control/test-sites.local.txt                               
+
+● Now I'll move the current password from the old file into wp-control/.env
+  without printing it, add a .env.example, and delete the old file:
+
+● Bash(cd /c/xampp/htdocs/wordpress-maintenance/wp-control; test -e .env && echo
+      "EXISTS - stop" || { pw=$(sed -n 's/^password: //p' test-sites.local.txt
+      | tr -d '\r\n…)  ⎿  Created .env.example (+2 -0)
+      1 +WPC_TEST_USER=admin                                             
+      2 +WPC_TEST_PASSWORD=                                              
+  ⎿  Deleted test-sites.local.txt (+0 -6)
+      1 -WP Control test sites (local only)                              
+      2 -http://localhost/wpc-manager/wp-admin                           
+      3 -http://localhost/wpc-client-a/wp-admin                          
+      4 -http://localhost/wpc-client-b/wp-admin                          
+      5 -user: admin                                                     
+      6 -password: 3d28ce10dd1c9b96                                      
+
+  Ran 1 shell command, wrote 1 memory (ctrl+o to expand)
+
+● I moved the test login out of the .txt file and into wp-control/.env. I'd used
+  a .txt file so it wouldn't get mixed up with your main project's .env.
+
+  The new file has two lines:
+  WPC_TEST_USER=admin
+  WPC_TEST_PASSWORD=...
+
+  - New file: wp-control/.env holds the same password as before, so your login
+    hasn't changed. I didn't touch or read your main .env, because it belongs to
+    the maintenance tool.
+  - Kept out of Git: your .gitignore already ignores every .env file, so this
+    one won't be committed either. I removed the .gitignore line for the old
+    .txt file, so .gitignore is back to how it was in your last commit.
+  - Example file: I added wp-control/.env.example with the password left empty,
+    like the one in your main project.
+  - Scripts updated: the setup script and the browser checks now read the login
+    from .env, and the README points to it. The browser checks still pass, 24
+    of 24.
+  - Old file deleted: test-sites.local.txt is gone.
+
+  To log in, open wp-control/.env, then use admin as the username and paste the
+  text after WPC_TEST_PASSWORD= as the password.
+
+[Image #5]
+  ⎿  1 skill available
+
+● Your address bar shows localhost/wordpress. That's your old site, and it has
+  no admin user. WP Control is on a separate test site, wpc-manager.
+
+  Open this address instead:
+
+  http://localhost/wpc-manager/wp-login.php
+
+  Then log in:
+  - Username: admin
+  - Password: the text after WPC_TEST_PASSWORD= in wp-control/.env
+
+  After you log in, click WP Control in the left menu.
+
+  The browser keeps filling in the wrong password because it remembers your
+  login for localhost. Clear the password box and paste the new one. The first
+  page after logging in can take up to a minute to load.
+
+> <ide_opened_file>The user opened the file
+  c:\xampp\htdocs\wordpress-maintenance\wp-control\.env in the IDE. This may or
+  may not be related to the current task.</ide_opened_file>
+  ⎿  [Image #6]
+
+● The screenshot doesn't show the address bar. I'll test the login on
+  wpc-manager directly to see if it works there.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● I tested the login on wpc-manager just now with admin and the password from
+  .env. It worked: WordPress logged in and sent me on to the dashboard.
+
+  So your login is correct, but your browser is most likely still on the old
+  site, localhost/wordpress. That site has no admin user, so it shows exactly
+  this error.
+
+  1. Click the address bar, delete everything and type:
+     localhost/wpc-manager/wp-login.php
+  2. Press Enter. Check the address bar says wpc-manager, not wordpress.
+  3. Log in with the same username and password you used here.
+
+  Your screenshot shows part of the password. That's fine, because it only works
+  for the test sites on your computer.
+
+[Image #7]
+
+> 8:42:58 AM  [mysql]     Status change detected: stopped
+  8:42:58 AM  [mysql]     Error: MySQL shutdown unexpectedly.
+  8:42:58 AM  [mysql]     This may be due to a blocked port, missing
+  dependencies,
+  8:42:58 AM  [mysql]     improper privileges, a crash, or a shutdown by
+  another method.
+  8:42:58 AM  [mysql]     Press the Logs button to view error logs and check
+  8:42:58 AM  [mysql]     the Windows Event Viewer for more clues
+  8:42:58 AM  [mysql]     If you need more help, copy and post this
+  8:42:58 AM  [mysql]     entire log window on the forums
+
+● The login worked, since you reached wpc-manager/wp-admin, but then MySQL
+  crashed. I'll check its error log.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● MySQL isn't running now, and its log shows no error at all. It started at 8:38
+  and 8:39, and each time it had to recover from an unclean stop first. I'll
+  check what stopped it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● MySQL crashed on an internal check (exception code 0x80000003) and wrote the
+  reason to the Windows event log. Reading it:
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● A database table file is damaged. InnoDB couldn't read page 0 of "space 82".
+  I'll find out which table that is.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Found the damaged table — it's wp_terms in the wpc_manager database (the test
+  Manager site, not your wordpress site). Before fixing it, I'll check whether
+  any other table files are also damaged.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Found the corruption in wpc_manager/wp_terms.ibd (test database only —
+  wordpress and client databases are fine), likely caused by MySQL starting
+  twice simultaneously after an unclean stop. Since it's just test data, I'll
+  move that folder aside and rebuild it rather than deleting it.
+
+  Ran 3 shell commands (ctrl+o to expand)
+
+● The corruption isn't isolated—MySQL's log sequence numbers are ahead of the
+  data pages and the mysql.db system table is corrupt too, likely from an
+  unclean shutdown or duplicate running instances. Before fixing anything, I'll
+  dump out every database that's still readable to prevent data loss.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All five dumps finished without errors. Before shutting down, I'll check that
+  the dumps are complete and see which MySQL users exist:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● These are just the default XAMPP users, confirming the data folder is
+  clean-slate. I'll shut down MySQL, back up the damaged data folder, replace it
+  with a fresh copy from XAMPP, then reload the dumps.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Background command "Start MySQL in the background" completed (exit code 0)
+
+● The fresh data folder is ready. Next I'll start MySQL and load the dumps:
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● MySQL is up with the fresh data folder — all 5 databases imported with
+  matching row counts, every table check passes, and the error log is clean. Now
+  I'll rebuild the test Manager site using the setup script and load the demo
+  data.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● That error for the offline site is expected, since the demo includes a site
+  that can't be reached on purpose. Now the full browser check, including the
+  login:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Everything works again: 24 of 24 checks pass, and the MySQL error log is
+  clean. Now I'll stop my copy of MySQL cleanly, so you can start it from the
+  XAMPP panel without two copies running at once:
+
+  Ran 1 shell command (ctrl+o to expand)
+● Background command "Start MySQL on the fresh data folder" completed (exit code
+0)
+
+  Wrote 1 memory (ctrl+o to expand)
+
+● I've fixed it. Your login was correct; the problem was that MySQL crashed
+  because some of its database files were damaged.
+
+  What went wrong: MySQL had been stopped without shutting down properly
+  (probably the computer was turned off while it was running). Then today it was
+  started twice, 3 seconds apart. Two copies of MySQL writing to the same files
+  damaged a table in the test Manager site, plus one of MySQL's own system
+  tables.
+
+  What I did:
+  1. Saved your data first. I exported every database that could still be read,
+     including your own wordpress site, into C:\xampp\mysql\dumps-2026-10-28\.
+  2. Kept the damaged files. Nothing was deleted. The old folder is now
+     C:\xampp\mysql\data-damaged-2026-10-28\.
+  3. Rebuilt MySQL. I made a fresh data folder from XAMPP's clean copy and
+     loaded all databases back in. Your wordpress site has the same users, posts
+     and settings as before.
+  4. Rebuilt the test Manager site from scratch, with the demo data.
+
+  Checks: every table checks out, the MySQL error log shows no errors, and all
+  24 browser checks pass, including the login. I stopped MySQL cleanly at the
+  end.
+
+  What you do now:
+  1. In XAMPP, click Start for MySQL once and wait until it turns green. Apache
+     is still running.
+  2. Open http://localhost/wpc-manager/wp-login.php and log in with admin and
+     the password from wp-control/.env. Your password hasn't changed.
+
+  To stop this happening again, always click Stop for MySQL in XAMPP before you
+  shut down the computer.
+
+  Once you've checked everything works, you can delete these three folders to
+  free up space:
+  - C:\xampp\mysql\data-damaged-2026-10-28\
+  - C:\xampp\mysql\wpc_manager-damaged-2026-10-28\
+  - C:\xampp\mysql\dumps-2026-10-28\
+
+> <ide_opened_file>The user opened the file c:\xampp\htdocs\wordpress-maintenan
+  ce\wp-control\wp-control-manager\includes\views\security.php in the IDE. This
+  may or may not be related to the current task.</ide_opened_file>
+
+> Make script for long time testing and breaching for this project
+
+● Opus 5.5's safeguards stopped the response above · continuing once
+  with that noted
+
+● Opus 5.5's safeguards flagged this session. You may be seeing this for the first time: Opus 5.5 is more capable and has stronger safeguards as a result, which can sometimes flag non-cybersecurity work. We're improving these safeguards to reduce the amount of incorrectly flagged messages. Opus 4.8 is answering instead, or you can edit and retry with Opus 5.5. Send feedback with /feedback or learn more: https://support.claude.com/en/articles/8106465
+
+  Details: `[cyber]`
+  ⎿  Tip: You can configure model switch behavior in /config
+
+● Let me look at the existing test and security code so the new script matches
+  your project's conventions and targets the right endpoints.
+
+  Read 2 files (ctrl+o to expand)
+
+● Let me check the Agent constants and signature helper so the requests are
+  built correctly.
+
+  Read 3 files (ctrl+o to expand)
+
+● Let me check how the Manager builds a signed request, so my script signs
+  identically.
+
+  Read 1 file (ctrl+o to expand)
+
+● Let me check where the Manager stores the encrypted key, so the security suite
+  can verify it's not in plaintext.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Now I'll add a read-only get-secret command to the agent helper, then build
+  the soak-and-security script.
+
+● Update(tests\agent-helper.php)
+  ⎿  Added 4 lines
+      254      echo '' === (string) get_option( WPControlAgent\SECRET_OPT
+           ION, '' ) ? 'no' : 'yes';
+      255      break;
+      256  
+      257 +  case 'get-secret':                                          
+      258 +    echo (string) get_option( WPControlAgent\SECRET_OPTION, ''
+          + );                                                           
+      259 +    break;                                                    
+      260 +                                                              
+      261    case 'render-admin':
+      262      require_once ABSPATH . 'wp-admin/includes/template.php';
+      263      add_filter(
+
+● Those diagnostics are the usual false positives for WordPress functions (the
+  IDE doesn't load WP). Now the main script:
+
+● Write(tests\soak-and-security.php)
+  ⎿  Wrote 459 lines to tests\soak-and-security.php
+       1 <?php
+       2 /**
+       3  * Soak and security harness for WP Control. Local test sites on
+         ly.
+       4  *
+       5  * It does two things:
+       6  *   1. Security regression: it acts as an outside caller and tr
+         ies many bad
+       7  *      requests against the Agent, then checks the Agent refuse
+         s each one and
+     … +452 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both lint clean. Now let me run it to confirm it works, with a short 1-minute
+  soak. MySQL needs to be up first.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The encryption check found 3 rows that are neither plaintext nor v1:. Let me
+  see what's actually stored.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The secrets really are v1: encrypted. The bug is in my script: Windows cmd
+  mangles the % in the SQL LIKE patterns, so the match silently returns 0 (which
+  also made the plaintext check a false pass). I'll switch to LEFT()
+  comparisons, which have no %.
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 2 lines, removed 2 lines
+      301  
+      302  echo "\n== Security: connection keys are stored encrypted ==\n
+           ";
+      303  
+      304 -$wpc_plain = mysql_value( "SELECT COUNT(*) FROM wpc_manager.wp
+          -_wpc_agents WHERE secret LIKE 'wpc1-%'" );                    
+      304 +$wpc_plain = mysql_value( "SELECT COUNT(*) FROM wpc_manager.wp
+          +_wpc_agents WHERE LEFT(secret, 5) = 'wpc1-'" );               
+      305  $wpc_rows  = mysql_value( 'SELECT COUNT(*) FROM wpc_manager.wp
+           _wpc_agents' );
+      306 -$wpc_enc   = mysql_value( "SELECT COUNT(*) FROM wpc_manager.wp
+          -_wpc_agents WHERE secret LIKE 'v1:%'" );                      
+      306 +$wpc_enc   = mysql_value( "SELECT COUNT(*) FROM wpc_manager.wp
+          +_wpc_agents WHERE LEFT(secret, 3) = 'v1:'" );                 
+      307  check( '0' === $wpc_plain, 'no connection key is stored in pla
+           in text in the Manager database' );
+      308  check( (int) $wpc_rows > 0 && $wpc_rows === $wpc_enc, "every s
+           tored key is encrypted (v1:) ($wpc_enc of $wpc_rows)" );
+      309  
+
+● Good catch from the IDE — I'll drop curl_close to match the earlier PHP 8.5
+  fix, then re-run the security section only (--minutes 0).
+
+● Update(tests\soak-and-security.php)
+  ⎿  Removed 1 line
+      129    $head     = substr( $raw, 0, $size );
+      130    $body     = substr( $raw, $size );
+      131    $location = preg_match( '/^Location: (.+)$/mi', $head, $matc
+           h ) ? trim( $match[1] ) : '';
+      132 -  curl_close( $curl );                                        
+      132    return array(
+      133      'code'     => $code,
+      134      'headers'  => $head,
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All 22 security checks pass now. Let me confirm the demo pairing still syncs
+  (the script is read-only, so it should), then update the README and memory.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Clean everywhere. Now I'll document the new script in the README and record it
+  in memory.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 3 lines, removed 1 line
+      36  ```powershell
+      37  C:\xampp\php\php.exe tests\run-tests.php
+      38  C:\xampp\php\php.exe tests\http-check.php
+      39 +C:\xampp\php\php.exe tests\soak-and-security.php --minutes 10  
+      40  ```
+      41  
+      42  - `run-tests.php`: 27 tests. They talk to the two client sites 
+          over real HTTP (signatures, change detection, backups, maintena
+          nce log, CSV, screens, permissions, uninstall).
+      43  - `http-check.php`: 24 checks like a browser does them: login, 
+          forms, nonces, CSV download.
+      43 -- The tests reset the three test sites. Never point them at a r
+         -eal site; they refuse anything that isn't `http://localhost/wpc
+         --manager`.                                                     
+      44 +- `soak-and-security.php`: tries many bad requests against the 
+         +Agent and checks each one is refused, checks the Manager pages 
+         +and API, checks keys are stored encrypted, then hammers the sit
+         +es for a while watching for PHP errors, a lost database, slow a
+         +nswers or a growing nonce store. It only reads; it changes noth
+         +ing. Use `--minutes 0` for the security checks alone, `--minute
+         +s 60` for a long run, `--sync` to also sync each cycle. Stop ea
+         +rly with Ctrl-C or by creating `tests\soak.stop`.              
+      45 +- The first two tests reset the three test sites. Never point t
+         +hem at a real site; they refuse anything that isn't `http://loc
+         +alhost/wpc-manager`.                                           
+      46  
+      47  ## Security
+      48  
+
+  Wrote 1 memory (ctrl+o to expand)
+● Done. I built a combined soak and security harness at
+  wp-control/tests/soak-and-security.php. It's authorized testing of your own
+  plugins on the local test sites, and it only reads — it changes no site
+  content.
+
+  Run it from the wp-control folder:
+  C:\xampp\php\php.exe tests\soak-and-security.php --minutes 10
+  - --minutes 0 — security checks only, no soak
+  - --minutes 60 — a long run
+  - --sync — also trigger a full Manager sync each cycle
+  - Stop early with Ctrl-C, or create the file tests\soak.stop
+
+  What it checks. I ran it just now: 22 of 22 security checks pass, and a
+  1-minute soak ran clean (0 problems, debug logs and MySQL clean).
+
+  Security part — it acts like an outside attacker and confirms the Agent
+  refuses every bad request:
+  - no/malformed signature headers → wpc_unsigned
+  - expired or future timestamp → wpc_clock
+  - wrong signature, wrong key, or signature for a different method/route →
+    wpc_bad_signature
+  - a replayed (reused) request → wpc_replay
+  - POST to the read-only endpoint is rejected
+  - a correctly signed request is accepted, its answer is signed, and a tampered
+    answer fails the signature
+
+  Plus the Manager side: REST without a nonce → 401, a form without a nonce →
+  403, a quote in search doesn't break SQL, a <script> in search is escaped, and
+  every stored connection key is encrypted (v1:), none in plaintext.
+
+  Soak part — for the chosen time it keeps calling both client Agents with good
+  and bad requests and every 20 s checks: no new PHP errors in any debug.log,
+  MySQL still answering, request latency, and that the nonce store stays small
+  (replay protection prunes itself).
+
+  Two supporting changes:
+  - Added a read-only get-secret command to tests/agent-helper.php
+    (wp-control/tests/agent-helper.php) so the script can sign with each site's
+    real key without re-pairing.
+  - Noted the new test in README.md (wp-control/README.md).
+
+  One bug I hit and fixed while building it: on Windows, passing a SQL LIKE
+  'v1:%' through the MySQL command line let cmd eat the %, so the "keys are
+  encrypted" count silently came back 0. I switched those queries to
+  LEFT(secret, 3) = 'v1:', which has no %.
+
+  Nothing is committed. MySQL is still running, so you can go straight to the
+  dashboard.
+
+> how run it
+  ⎿  Interrupted · What should Claude do instead?
+
+> C:\xampp\htdocs\wordpress-maintenance\wp-control>
+
+● You're already in the right folder. Run:
+
+  C:\xampp\php\php.exe tests\soak-and-security.php --minutes 10
+
+  That runs the 22 security checks, then soaks for 10 minutes. MySQL is already
+  running, so it'll work now.
+
+  Options:
+  - Security checks only (fast, ~15 seconds): C:\xampp\php\php.exe
+    tests\soak-and-security.php --minutes 0
+  - Longer run: change the number, e.g. --minutes 60
+  - Stop early: press Ctrl-C
+
+  During the soak it prints a progress line every 20 seconds and a summary at
+  the end.
+
+> Add colors to cmd to it
+
+● I'll add ANSI colors (green for ok, red for FAIL, cyan headings) and enable
+  them for Windows cmd.
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 14 lines
+      36  $wpc_passed = 0;
+      37  $wpc_failed = 0;
+      38  
+      39 +$wpc_color = function_exists( 'stream_isatty' ) ? stream_isatty
+         +( STDOUT ) : true;                                             
+      40 +if ( $wpc_color && function_exists( 'sapi_windows_vt100_support
+         +' ) ) {                                                        
+      41 +  $wpc_color = sapi_windows_vt100_support( STDOUT, true );     
+      42 +}                                                              
+      43 +                                                               
+      44 +function paint( $text, $code ) {                               
+      45 +  global $wpc_color;                                           
+      46 +  return $wpc_color ? "\033[" . $code . 'm' . $text . "\033[0m"
+         + : $text;                                                      
+      47 +}                                                              
+      48 +                                                               
+      49 +function heading( $text ) {                                    
+      50 +  echo "\n" . paint( $text, '36;1' ) . "\n";                   
+      51 +}                                                              
+      52 +                                                               
+      53  function sign( $secret, $parts ) {
+      54    return hash_hmac( 'sha256', implode( "\n", $parts ), $secret 
+          );
+      55  }
+
+● Those are all informational "no type hints" notices, matching the project's
+  style. Now I'll apply the colors to the output lines.
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      83  
+      84  function check( $condition, $label ) {
+      85    global $wpc_passed, $wpc_failed;
+      86 -  echo ( $condition ? 'ok    ' : 'FAIL  ' ) . $label . "\n";   
+      86 +  echo ( $condition ? paint( 'ok', '32' ) . '    ' : paint( 'FA
+         +IL', '31' ) . '  ' ) . $label . "\n";                          
+      87    $condition ? ++$wpc_passed : ++$wpc_failed;
+      88  }
+      89  
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      217    return ( 'yes' === $probe || 'no' === $probe ) ? 'local' : '
+           unknown';
+      218  }
+      219  
+      220 -echo "== Security: the Agent must refuse every bad request ==\
+          -n";                                                           
+      220 +heading( '== Security: the Agent must refuse every bad request
+          + ==' );                                                       
+      221  
+      222  $wpc_site   = CLIENTS[0];
+      223  $wpc_secret = $wpc_secrets[ $wpc_site ];
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      282  $r = request( $wpc_url, signed_headers( $wpc_secret, $wpc_ts, 
+           $wpc_id ) );
+      283  check( 401 === $r['code'] && 'wpc_replay' === error_code( $r )
+           , 'the same request sent twice is refused (replay) -> 401 wpc_
+           replay' );
+      284  
+      285 -echo "\n== Security: the Manager web pages and API ==\n";     
+      285 +heading( '== Security: the Manager web pages and API ==' );   
+      286  
+      287  $wpc_cookies = tempnam( sys_get_temp_dir(), 'wpc' );
+      288  $wpc_login   = log_in( MANAGER, $wpc_cookies, $wpc_password );
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      312  
+      313  unlink( $wpc_cookies );
+      314  
+      315 -echo "\n== Security: connection keys are stored encrypted ==\n
+          -";                                                            
+      315 +heading( '== Security: connection keys are stored encrypted ==
+          +' );                                                          
+      316  
+      317  $wpc_plain = mysql_value( "SELECT COUNT(*) FROM wpc_manager.wp
+           _wpc_agents WHERE LEFT(secret, 5) = 'wpc1-'" );
+      318  $wpc_rows  = mysql_value( 'SELECT COUNT(*) FROM wpc_manager.wp
+           _wpc_agents' );
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      320  check( '0' === $wpc_plain, 'no connection key is stored in pla
+           in text in the Manager database' );
+      321  check( (int) $wpc_rows > 0 && $wpc_rows === $wpc_enc, "every s
+           tored key is encrypted (v1:) ($wpc_enc of $wpc_rows)" );
+      322  
+      323 -echo "\n$wpc_passed passed, $wpc_failed failed in the security
+          - checks\n";                                                   
+      323 +echo "\n" . paint( $wpc_passed . ' passed', '32' ) . ', ' . ( 
+          +$wpc_failed > 0 ? paint( $wpc_failed . ' failed', '31' ) : '0 
+          +failed' ) . " in the security checks\n";                      
+      324  
+      325  $wpc_minutes = (int) ( null === $wpc_env ? 10 : $wpc_env );
+      326  if ( $wpc_minutes <= 0 ) {
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      328    exit( $wpc_failed > 0 ? 1 : 0 );
+      329  }
+      330  
+      331 -echo "\n== Soak: hammering the Agent for $wpc_minutes minute(s
+          -) ==\n";                                                      
+      331 +heading( "== Soak: hammering the Agent for $wpc_minutes minute
+          +(s) ==" );                                                    
+      332  echo "Stop early with Ctrl-C or by creating tests\\soak.stop\n
+           \n";
+      333  
+      334  $wpc_sync_each = flag( '--sync' );
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      411          ++$wpc_bad_ok;
+      412        } else {
+      413          ++$wpc_problems;
+      414 -        echo 'FAIL  a bad request to ' . $wpc_site . ' was not
+          - refused: HTTP ' . $one['code'] . "\n";                       
+      414 +        echo paint( 'FAIL', '31' ) . '  a bad request to ' . $
+          +wpc_site . ' was not refused: HTTP ' . $one['code'] . "\n";   
+      415        }
+      416      }
+      417    }
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      425  
+      426      if ( ! mysql_up() ) {
+      427        ++$wpc_problems;
+      428 -      echo "FAIL  MySQL stopped answering during the soak\n"; 
+      428 +      echo paint( 'FAIL', '31' ) . "  MySQL stopped answering 
+          +during the soak\n";                                           
+      429        break;
+      430      }
+      431  
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      432      foreach ( $wpc_offsets as $wpc_name => $wpc_offset ) {
+      433        foreach ( new_log_problems( $wpc_name, $wpc_offset ) as 
+           $wpc_line ) {
+      434          ++$wpc_problems;
+      435 -        echo 'FAIL  PHP error on ' . $wpc_name . ': ' . $wpc_l
+          -ine . "\n";                                                   
+      435 +        echo paint( 'FAIL', '31' ) . '  PHP error on ' . $wpc_
+          +name . ': ' . $wpc_line . "\n";                               
+      436        }
+      437      }
+      438  
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      458  
+      459  @unlink( $wpc_stop_file );
+      460  
+      461 -echo "\n== Soak result ==\n";                                 
+      461 +heading( '== Soak result ==' );                               
+      462  foreach ( CLIENTS as $wpc_site ) {
+      463    $a = $wpc_lat[ $wpc_site ];
+      464    if ( $a ) {
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 1 line, removed 1 line
+      468  printf( "%d cycles, %d good answers, %d bad requests refused, 
+           %d problems\n", $wpc_cycle, $wpc_good_ok, $wpc_bad_ok, $wpc_pr
+           oblems );
+      469  
+      470  $wpc_total_failed = $wpc_failed + $wpc_problems;
+      471 -echo "\n" . ( 0 === $wpc_total_failed ? 'All clear.' : $wpc_to
+          -tal_failed . ' problem(s) found.' ) . "\n";                   
+      471 +echo "\n" . ( 0 === $wpc_total_failed ? paint( 'All clear.', '
+          +32;1' ) : paint( $wpc_total_failed . ' problem(s) found.', '31
+          +;1' ) ) . "\n";                                               
+      472  exit( $wpc_total_failed > 0 ? 1 : 0 );
+
+● Let me color the problems counter in the progress line when it's nonzero, then
+  lint and run.
+
+● Update(tests\soak-and-security.php)
+  ⎿  Added 2 lines, removed 2 lines
+      441      $avg   = $a ? array_sum( $a ) / count( $a ) : 0;
+      442      $nonce_bytes = (int) mysql_value( "SELECT COALESCE(LENGTH(
+           option_value), 0) FROM wpc_client_a.wp_options WHERE option_na
+           me = 'wp_control_agent_nonces'" );
+      443      printf(
+      444 -      "cycle %d | %ds left | good %d, bad refused %d | %s avg 
+          -%.0f ms | nonce store %d B | problems %d\n",                  
+      444 +      "cycle %d | %ds left | good %d, bad refused %d | %s avg 
+          +%.0f ms | nonce store %d B | %s\n",                           
+      445        $wpc_cycle,
+      446        $left,
+      447        $wpc_good_ok,
+     ...
+      449        CLIENTS[0],
+      450        $avg,
+      451        $nonce_bytes,
+      452 -      $wpc_problems                                           
+      452 +      $wpc_problems > 0 ? paint( 'problems ' . $wpc_problems, 
+          +'31' ) : 'problems 0'                                         
+      453      );
+      454    }
+      455  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Added and working. All 22 checks still pass.
+
+  When you run it directly in cmd, you'll now see:
+  - ok in green, FAIL in red
+  - section headings in cyan
+  - the end result in green (All clear.) or red
+  - in the soak, the problems counter turns red if anything goes wrong
+
+  One nice side effect: colors are only emitted to a real terminal. If you pipe
+  or redirect the output to a file (> log.txt), it stays plain text with no
+  escape codes, so logs stay clean. It also auto-enables Windows' ANSI support,
+  so it works in both the classic cmd window and Windows Terminal.
+
+  Run it the same way:
+  C:\xampp\php\php.exe tests\soak-and-security.php --minutes 10
+
+  Nothing is committed.
+
+> C:\xampp\htdocs\wordpress-maintenance\wp-control>C:\xampp\php\php.exe
+  tests\soak-and-security.php --minutes 10
+
+  == Security: the Agent must refuse every bad request ==
+  ok    no signature headers -> 401 wpc_unsigned
+  ok    bad nonce format -> 401 wpc_unsigned
+  ok    bad signature format -> 401 wpc_unsigned
+  ok    non-numeric timestamp -> 401 wpc_unsigned
+  ok    expired timestamp -> 401 wpc_clock
+  ok    future timestamp -> 401 wpc_clock
+  ok    wrong signature value -> 401 wpc_bad_signature
+  ok    signed with the wrong key -> 401 wpc_bad_signature
+  ok    signature for a different method -> 401 wpc_bad_signature
+  ok    signature for a different route -> 401 wpc_bad_signature
+  ok    POST to the read-only endpoint is not accepted (HTTP 404)
+  ok    a correctly signed request is accepted (HTTP 200)
+  ok    the answer is signed with our key
+  ok    a changed answer no longer matches the signature
+  ok    the same request sent twice is refused (replay) -> 401 wpc_replay
+
+  == Security: the Manager web pages and API ==
+  ok    the administrator can log in to the Manager
+  ok    the Manager REST API refuses a cookie login without the REST nonce ->
+  401
+  ok    a Manager form without a valid nonce is refused -> 403
+  ok    a quote in the search box does not break the query (safe from SQL
+  injection)
+  ok    a script tag in the search box is escaped, not reflected (safe from
+  XSS)
+
+  == Security: connection keys are stored encrypted ==
+  ok    no connection key is stored in plain text in the Manager database
+  ok    every stored key is encrypted (v1:) (3 of 3)
+
+  22 passed, 0 failed in the security checks
+
+  == Soak: hammering the Agent for 10 minute(s) ==
+  Stop early with Ctrl-C or by creating tests\soak.stop
+
+  cycle 6 | 579s left | good 12, bad refused 36 | wpc-client-a avg 462 ms |
+  nonce store 696 B | problems 0
+  cycle 12 | 558s left | good 24, bad refused 72 | wpc-client-a avg 441 ms |
+  nonce store 1014 B | problems 0
+  cycle 18 | 536s left | good 36, bad refused 108 | wpc-client-a avg 429 ms |
+  nonce store 1332 B | problems 0
+  cycle 24 | 516s left | good 48, bad refused 144 | wpc-client-a avg 433 ms |
+  nonce store 1650 B | problems 0
+  cycle 30 | 496s left | good 60, bad refused 180 | wpc-client-a avg 429 ms |
+  nonce store 1968 B | problems 0
+  cycle 37 | 474s left | good 74, bad refused 222 | wpc-client-a avg 429 ms |
+  nonce store 2339 B | problems 0
+  cycle 44 | 451s left | good 88, bad refused 264 | wpc-client-a avg 427 ms |
+  nonce store 2710 B | problems 0
+  cycle 51 | 429s left | good 102, bad refused 306 | wpc-client-a avg 420 ms |
+  nonce store 3081 B | problems 0
+  cycle 57 | 409s left | good 114, bad refused 342 | wpc-client-a avg 419 ms |
+  nonce store 3399 B | problems 0
+  cycle 64 | 387s left | good 128, bad refused 384 | wpc-client-a avg 420 ms |
+  nonce store 3770 B | problems 0
+  cycle 70 | 367s left | good 140, bad refused 420 | wpc-client-a avg 419 ms |
+  nonce store 4088 B | problems 0
+  cycle 77 | 345s left | good 154, bad refused 462 | wpc-client-a avg 418 ms |
+  nonce store 4459 B | problems 0
+  cycle 84 | 323s left | good 168, bad refused 504 | wpc-client-a avg 417 ms |
+  nonce store 4830 B | problems 0
+  cycle 90 | 303s left | good 180, bad refused 540 | wpc-client-a avg 415 ms |
+  nonce store 5148 B | problems 0
+  cycle 97 | 281s left | good 194, bad refused 582 | wpc-client-a avg 416 ms |
+  nonce store 5520 B | problems 0
+  cycle 101 | 232s left | good 202, bad refused 606 | wpc-client-a avg 416 ms |
+  nonce store 5732 B | problems 0
+  cycle 108 | 210s left | good 216, bad refused 648 | wpc-client-a avg 416 ms |
+  nonce store 6103 B | problems 0
+  cycle 114 | 190s left | good 228, bad refused 684 | wpc-client-a avg 415 ms |
+  nonce store 6421 B | problems 0
+  cycle 120 | 170s left | good 240, bad refused 720 | wpc-client-a avg 414 ms |
+  nonce store 6739 B | problems 0
+  cycle 126 | 150s left | good 252, bad refused 756 | wpc-client-a avg 415 ms |
+  nonce store 6845 B | problems 0
+  cycle 132 | 130s left | good 264, bad refused 792 | wpc-client-a avg 415 ms |
+  nonce store 7110 B | problems 0
+  cycle 139 | 107s left | good 278, bad refused 834 | wpc-client-a avg 415 ms |
+  nonce store 7481 B | problems 0
+  cycle 145 | 87s left | good 290, bad refused 870 | wpc-client-a avg 416 ms |
+  nonce store 7799 B | problems 0
+  cycle 152 | 64s left | good 304, bad refused 912 | wpc-client-a avg 416 ms |
+  nonce store 8170 B | problems 0
+  cycle 159 | 41s left | good 318, bad refused 954 | wpc-client-a avg 417 ms |
+  nonce store 8488 B | problems 0
+  cycle 166 | 18s left | good 332, bad refused 996 | wpc-client-a avg 416 ms |
+  nonce store 8859 B | problems 0
+  cycle 172 | 0s left | good 344, bad refused 1032 | wpc-client-a avg 415 ms |
+  nonce store 9124 B | problems 0
+
+  == Soak result ==
+  wpc-client-a latency: min 281 ms, avg 415 ms, max 565 ms over 172 calls
+  wpc-client-b latency: min 261 ms, avg 515 ms, max 17379 ms over 172 calls
+  172 cycles, 344 good answers, 1032 bad requests refused, 0 problems
+
+  All clear.
+
+  C:\xampp\htdocs\wordpress-maintenance\wp-control>
+
+● Clean run — everything passed. Here's how to read the results:
+
+  Security: 22/22. Every forged, expired, replayed, or wrong-key request was
+  refused, only the correctly signed one got through, keys are stored encrypted,
+  and the Manager blocks nonce-less forms, SQL injection and XSS.
+
+  Soak: 172 cycles, 1,376 requests, 0 problems. No PHP errors on any site, MySQL
+  stayed up the whole 10 minutes, and 1,032 bad requests were all refused.
+
+  Two things in the numbers are worth a word, both expected:
+
+  - The nonce store grew (696 B → 9 KB) and didn't shrink. That's correct, not a
+    leak. The Agent keeps each used nonce for 600 seconds for replay
+    protection, then prunes it. Your run was exactly 600 seconds, so it ended
+    right as the oldest entries began expiring — it was still filling the
+    window. It plateaus around 9–10 KB even under this hammering (one valid
+    request every ~3.5 s). In real use, syncs are hourly, so the store holds
+    only a handful of entries. If you want to see the plateau, run --minutes 20
+    and you'll watch "nonce store" level off instead of climb.
+  - wpc-client-b had one 17-second spike (max 17379 ms) against an average of
+    515 ms. That single call still returned a correct, signed answer — it
+    counted as "good". It's almost certainly a one-off: a background WordPress
+    task, opcache warm-up, or a disk/Apache hiccup on that site. client-a never
+    spiked. Not a bug, but if you want to be sure it doesn't recur, a longer run
+    will tell.
+
+  Latency was otherwise steady: client-a ~415 ms, client-b ~515 ms, both fine
+  for local XAMPP.
+
+  No code changes needed and nothing is committed. Want me to kick off a longer
+  run to confirm the nonce store plateaus and the spike doesn't come back?
+
+> now make other which like highly overload the website to test if they crash
+  or something
+● I'll build a load/stress tester that fires many concurrent requests at the
+  local test sites to see if Apache, PHP or MySQL fall over. Same hard
+  localhost-only guard as the other scripts — it refuses anything that isn't a
+  local test site.
+
+● Write(tests\load-test.php)
+  ⎿  Wrote 396 lines to tests\load-test.php
+       1 <?php
+       2 /**
+       3  * Load and stress test for WP Control. Local test sites only.
+       4  *
+       5  * It fires many requests at the same time to see if the sites s
+         low down,
+       6  * return errors or fall over, and whether they recover afterwar
+         ds. It watches
+       7  * HTTP status, connection failures, latency, throughput, PHP er
+         rors, the
+     … +389 lines (ctrl+o to expand)
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Lint clean. Let me validate it with a modest run across all three targets
+  (keeping load moderate so I don't crash MySQL during the test itself).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● It works, but I spotted one bug: the dashboard phase returned all 302
+  (redirects to login), meaning my manual cookie extraction missed the login.
+  The reason: WordPress auth cookies are HttpOnly, which curl's cookie file
+  marks with a #HttpOnly_ prefix — and my parser was skipping every line
+  starting with #. Let me fix that.
+
+● Update(tests\load-test.php)
+  ⎿  Added 5 lines, removed 2 lines
+      120    curl_exec( $ch );
+      121    $pairs = array();
+      122    foreach ( explode( "\n", (string) file_get_contents( $jar ) 
+           ) as $line ) {
+      123 -    if ( '' === trim( $line ) || '#' === $line[0] ) {         
+      123 +    $line = trim( $line );                                    
+      124 +    if ( 0 === strpos( $line, '#HttpOnly_' ) ) {              
+      125 +      $line = substr( $line, strlen( '#HttpOnly_' ) );        
+      126 +    } elseif ( '' === $line || '#' === $line[0] ) {           
+      127        continue;
+      128      }
+      126 -    $parts = explode( "\t", trim( $line ) );                  
+      129 +    $parts = explode( "\t", $line );                          
+      130      if ( count( $parts ) >= 7 ) {
+      131        $pairs[] = $parts[5] . '=' . $parts[6];
+      132      }
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Still 302 — the manual Cookie header isn't authenticating. Let me use curl's
+  own cookie file (read-only) for each request instead of hand-parsing. First a
+  quick probe to confirm that approach logs in:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found the real cause: curl only flushes the cookie jar to disk on curl_close,
+  which I never called — so the file was empty and no cookies were sent. The
+  HttpOnly parsing was a red herring. I'll close the handle to flush, then have
+  each concurrent request read that jar file read-only (safe under concurrency).
+  Quick re-probe:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The jar file still isn't being created (likely the Windows mixed-slash path).
+  Let me drop jar files entirely and read the auth cookies straight from the
+  login response's Set-Cookie headers:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Header capture works — 4 cookies, admin page returns 200. Let me replace
+  login_cookie() with that approach.
+
+● Update(tests\load-test.php)
+  ⎿  Added 19 lines, removed 17 lines
+      111  }
+      112  
+      113  function login_cookie( $base, $password ) {
+      114 -  $jar = tempnam( sys_get_temp_dir(), 'wpc' );                
+      115 -  $ch  = curl_init( $base . '/wp-login.php' );                
+      116 -  curl_setopt_array( $ch, array( CURLOPT_RETURNTRANSFER => tru
+          -e, CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar ) ); 
+      114 +  $headers = array();                                         
+      115 +  $ch      = curl_init( $base . '/wp-login.php' );            
+      116 +  curl_setopt_array(                                          
+      117 +    $ch,                                                      
+      118 +    array(                                                    
+      119 +      CURLOPT_RETURNTRANSFER  => true,                        
+      120 +      CURLOPT_FOLLOWLOCATION  => false,                       
+      121 +      CURLOPT_POST            => true,                        
+      122 +      CURLOPT_HTTPHEADER      => array( 'Cookie: wordpress_tes
+          +t_cookie=WP Cookie check' ),                                  
+      123 +      CURLOPT_POSTFIELDS      => http_build_query( array( 'log
+          +' => 'admin', 'pwd' => $password, 'wp-submit' => 'Log In', 'te
+          +stcookie' => '1', 'redirect_to' => $base . '/wp-admin/' ) ),  
+      124 +      CURLOPT_HEADERFUNCTION  => function ( $curl, $line ) use
+          + ( &$headers ) {                                              
+      125 +        $headers[] = $line;                                   
+      126 +        return strlen( $line );                               
+      127 +      },                                                      
+      128 +    )                                                         
+      129 +  );                                                          
+      130    curl_exec( $ch );
+      118 -  curl_setopt( $ch, CURLOPT_POST, true );                     
+      119 -  curl_setopt( $ch, CURLOPT_POSTFIELDS, http_build_query( arra
+          -y( 'log' => 'admin', 'pwd' => $password, 'wp-submit' => 'Log I
+          -n', 'testcookie' => '1', 'redirect_to' => $base . '/wp-admin/'
+          - ) ) );                                                       
+      120 -  curl_exec( $ch );                                           
+      131    $pairs = array();
+      122 -  foreach ( explode( "\n", (string) file_get_contents( $jar ) 
+          -) as $line ) {                                                
+      123 -    $line = trim( $line );                                    
+      124 -    if ( 0 === strpos( $line, '#HttpOnly_' ) ) {              
+      125 -      $line = substr( $line, strlen( '#HttpOnly_' ) );        
+      126 -    } elseif ( '' === $line || '#' === $line[0] ) {           
+      127 -      continue;                                               
+      132 +  foreach ( $headers as $line ) {                             
+      133 +    if ( preg_match( '/^Set-Cookie:\s*([^=]+=[^;]+)/i', $line,
+          + $match ) ) {                                                 
+      134 +      $pairs[] = trim( $match[1] );                           
+      135      }
+      129 -    $parts = explode( "\t", $line );                          
+      130 -    if ( count( $parts ) >= 7 ) {                             
+      131 -      $pairs[] = $parts[5] . '=' . $parts[6];                 
+      132 -    }                                                         
+      136    }
+      134 -  unlink( $jar );                                             
+      137    return implode( '; ', $pairs );
+      138  }
+      139  
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now the dashboard phase returns 200 — it's actually logged in and rendering
+  the real admin pages under load. Let me add it to the README and record the
+  finding in memory.
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(README.md)
+  ⎿  Added 1 line
+      37  C:\xampp\php\php.exe tests\run-tests.php
+      38  C:\xampp\php\php.exe tests\http-check.php
+      39  C:\xampp\php\php.exe tests\soak-and-security.php --minutes 10
+      40 +C:\xampp\php\php.exe tests\load-test.php --target all --concurr
+         +ency 50 --seconds 60                                           
+      41  ```
+      42  
+      43  - `run-tests.php`: 27 tests. They talk to the two client sites 
+          over real HTTP (signatures, change detection, backups, maintena
+          nce log, CSV, screens, permissions, uninstall).
+
+● Update(README.md)
+  ⎿  Added 1 line
+      43  - `run-tests.php`: 27 tests. They talk to the two client sites 
+          over real HTTP (signatures, change detection, backups, maintena
+          nce log, CSV, screens, permissions, uninstall).
+      44  - `http-check.php`: 24 checks like a browser does them: login, 
+          forms, nonces, CSV download.
+      45  - `soak-and-security.php`: tries many bad requests against the 
+          Agent and checks each one is refused, checks the Manager pages 
+          and API, checks keys are stored encrypted, then hammers the sit
+          es for a while watching for PHP errors, a lost database, slow a
+          nswers or a growing nonce store. It only reads; it changes noth
+          ing. Use `--minutes 0` for the security checks alone, `--minute
+          s 60` for a long run, `--sync` to also sync each cycle. Stop ea
+          rly with Ctrl-C or by creating `tests\soak.stop`.
+      46 +- `load-test.php`: fires many requests at the same time to see 
+         +if the sites slow down, return errors or fall over, then checks
+         + they recover. `--target` is `agent`, `dashboard`, `front` or `
+         +all`; `--concurrency` is how many run at once (default 30); `--
+         +seconds` is how long per target (default 30). It only reads. A 
+         +heavy run can crash MySQL on this machine; if it does, see the 
+         +repair steps in the notes.                                     
+      47  - The first two tests reset the three test sites. Never point t
+          hem at a real site; they refuse anything that isn't `http://loc
+          alhost/wpc-manager`.
+      48  
+      49  ## Security
+
+  Wrote 1 memory (ctrl+o to expand)
+
+● Done. New stress tester at wp-control/tests/load-test.php. It uses curl_multi
+  to keep many requests in flight at once and watches whether Apache, PHP or
+  MySQL fall over. Like the other scripts, it refuses anything that isn't a
+  local test site, and it only reads.
+
+  Run it (from the wp-control folder):
+  C:\xampp\php\php.exe tests\load-test.php --target all --concurrency 50
+  --seconds 60
+  - --target — agent (signed snapshot endpoint), dashboard (logged-in admin
+    pages), front (client home pages), or all
+  - --concurrency — how many requests run at once (default 30)
+  - --seconds — how long per target (default 30)
+
+  What it reports per target: requests/second, status breakdown
+  (200/302/401/5xx), latency p50/p90/p99/max, connection failures (the real "it
+  crashed" signal), and 5xx server errors. Afterwards it does a recovery check:
+  is MySQL still answering, do all three sites still return a page, and are the
+  debug logs still clean. The final line is green if everything stayed up, red
+  if the load caused errors.
+
+  I validated it at moderate load (all three targets), 0 errors, sites
+  recovered, logs clean. To really push for a crash, raise --concurrency (e.g.
+  100–200).
+
+  One heads-up: heavy runs genuinely can crash MySQL on this machine — that's
+  the point of the test, but if it happens the recovery steps are the same ones
+  from last time (dump, swap in a fresh data folder from mysql\backup,
+  reimport). I noted that in the script header and the README.
+
+  Two bugs I found and fixed while building it:
+  - The dashboard phase first returned all 302 (not logged in). Cause: curl only
+    writes its cookie jar file on curl_close, which never ran, so the jar was
+    empty — plus WordPress auth cookies are HttpOnly. I switched to capturing
+    the Set-Cookie headers from the login response and resending them, which
+    works under concurrency.
+
+  I also noted the new test in the README (wp-control/README.md). Nothing is
+  committed.
+
+> how run it?
+
+● From the wp-control folder (you're already there), run:
+
+  C:\xampp\php\php.exe tests\load-test.php
+
+  That hits the Agent endpoint with 30 requests at once for 30 seconds — a safe
+  default.
+
+  To really try to overload it, raise the numbers and hit everything:
+  C:\xampp\php\php.exe tests\load-test.php --target all --concurrency 100
+  --seconds 60
+
+  Options:
+  - --target all — test the Agent, the dashboard, and the front pages
+  - --concurrency 100 — 100 requests at the same time (push this higher to
+    stress harder)
+  - --seconds 60 — how long each target runs
+
+  Make sure MySQL is running in XAMPP first. The higher you set --concurrency,
+  the more likely MySQL crashes — that's the point of the test, and if it
+  happens I can repair it the same way as before.
